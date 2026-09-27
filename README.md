@@ -78,6 +78,11 @@ A full cycle that repeats three times must halt and report blockers.
 - Optional Telegram reclaim alerts when the reaper resets a card (off unless
   `KANBAN_TELEGRAM_BOT_TOKEN` + `KANBAN_TELEGRAM_CHAT_ID` are set).
 
+## Releases & Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for notable changes and version history.
+Tested against [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) releases `v2.14.0` through `v2.14.3`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

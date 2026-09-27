@@ -1,0 +1,28 @@
+# Changelog
+
+All notable changes to the `kanban-orchestrator` skill are documented here.
+This project follows [Semantic Versioning](https://semver.org/).
+
+Release tags are available on [GitHub Releases](https://github.com/riazrahaman/kanban-orchestrator/releases).
+
+## [1.1.0] — 2026-09-27
+
+Protocol alignment with [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) v2.14.3.
+
+### Added
+- **Changelog**: Introduced `CHANGELOG.md` for tracking skill protocol and documentation updates.
+- **Compatibility Documentation**: Documented compatibility with upstream `agent-kanban-board` v2.14.0+ through v2.14.3+.
+
+### Changed
+- Aligned skill protocol documentation with upstream `v2.14.3`, including branch normalization rules and Telegram reclaim alert mechanisms.
+- Updated `README.md` with links to changelog and upstream board releases.
+
+## [1.0.0] — 2026-09-26
+
+Initial standalone release of the `kanban-orchestrator` skill.
+
+### Added
+- **Protocol Specification**: Standalone `SKILL.md` orchestrator protocol for OpenCode coding agents driving `agent-kanban-board`.
+- **Automatic Local Deployment**: Automated local clone, build, and run instructions if no remote board URL is configured.
+- **Role-based Lifecycle**: Step-by-step workflow covering claim-first `BUILDING`, `IN_REVIEW`, `IN_TEST`, and `DONE` stages.
+- **Safety Rules**: Enforces optimistic locking with `expected_version`, heartbeats, and per-claim lease windows.
