@@ -5,6 +5,22 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 Release tags are available on [GitHub Releases](https://github.com/riazrahaman/kanban-orchestrator/releases).
 
+> **Version numbering.** From `2.14.3` on, the skill's version matches its
+> [SkillPort listing](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban).
+> Earlier SkillPort versions map to the GitHub releases below:
+> SkillPort `2.14.2` = `v1.0.0` (commit `09f4f90`), SkillPort `2.14.3` = `v1.2.0` (commit `cf01541`).
+> `v1.1.0` was not published on SkillPort. Skill versions are independent of
+> [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
+> board compatibility is listed in each entry.
+
+## [2.14.3] — 2026-09-28
+
+Version renumbering only. The protocol is unchanged from `1.2.0`.
+
+### Changed
+- Skill frontmatter `version` set to `2.14.3` to match the SkillPort listing.
+- Compatible with upstream `agent-kanban-board` `v2.14.0` through `v2.15.1+`.
+
 ## [1.2.0] — 2026-09-28
 
 Protocol alignment with [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) v2.15.1.
