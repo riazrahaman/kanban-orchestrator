@@ -1,7 +1,7 @@
 ---
 name: kanban-orchestrator
 description: "Strict Kanban-first orchestrator for delegated builds, tasks, and feature workflows using agent-kanban-board. Use when managing tasks on a kanban board, orchestrating builder, reviewer, and tester agent workflows, or deploying the local agent-kanban-board server."
-version: 2.14.4
+version: v2.14.4
 ---
 
 # Kanban Orchestrator Protocol
