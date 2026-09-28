@@ -1,83 +1,180 @@
 # kanban-orchestrator
 
-A [opencode](https://opencode.ai) skill that turns a coding agent into a **strict
-Kanban-first orchestrator** for delegated builds, tasks, and feature workflows.
-It drives an [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board)
-board as the single source of truth: you hold the lease, dispatch builder /
-reviewer / tester workers, and move each card through the state machine with
-evidence.
+**Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
 
-## What it does
+Version `2.14.4` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
-- **Board is the state machine.** Every task lives on a card; stage transitions
-  are role-gated and validated server-side. Illegal moves return `409`, wrong
-  roles return `403`.
-- **Claim to own, PATCH to move.** Entering an active stage means claiming the
-  card (`POST /tasks/:id/claim`), which sets the owner and a lease. A
-  status-only PATCH produces an ownerless card the reaper resets to `BACKLOG`.
-- **Leases beat crashes.** A held card is kept alive with heartbeats; if the
-  holder disappears the reaper returns the card to `BACKLOG` so another agent
-  can pick it up. Uncommitted work is never lost, but it is never committed
-  either — always inspect the branch after a reclaim.
-- **Scoped by project.** Every task path carries `?project=<name>`; only
-  `POST /tasks` takes the project in the body.
+The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
+
+The board is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side, so an agent cannot declare progress it hasn't earned.
+
+The full protocol lives in [`SKILL.md`](SKILL.md). This README is the human-facing overview.
+
+## How it works
+
+```
+                 [GitHub issue #N] ── linked ──┐
+                                               ↓
+[Orchestrator / admin] ── POST /tasks ──→ [BACKLOG card]
+        │                                      │
+        │  POST /claim  (owner + lease)        ↓
+        ├────────────────────────────────→ [BUILDING] ←──────────┐
+        │    dispatch BUILDER                  │                 │ blocking findings
+        │                                      ↓                 │
+        ├── PATCH (expected_version) ──→ [IN_REVIEW] ────────────┘
+        │    dispatch REVIEWER                 │ approve
+        │                                      ↓
+        ├── PATCH (expected_version) ──→ [IN_TEST] ── fail ──→ [BACKLOG]
+        │    dispatch TESTER                   │ pass
+        │                                      ↓
+        └── docs + version bump → merge --no-ff → tag v<version> → [DONE]
+                                               ↓
+                              close issue #N → verify deployment → report
+
+  Heartbeats keep the lease alive. Lease lost → the reaper returns the card to BACKLOG.
+```
+
+## When to use it
+
+- You want an agent to run a feature or fix end-to-end without skipping review or tests.
+- You run several agents and need one place that shows who owns what, in which stage.
+- You want crash-safe delegation: if a worker dies mid-build, the card returns to the queue instead of rotting in `BUILDING`.
+
+It is not a code generator and it does not replace your CI. It is a protocol that makes an agent behave like a disciplined tech lead.
+
+## Requirements
+
+- An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
+- A running agent-kanban-board, tested against `v2.14.0` through `v2.15.1+`. No board yet? The skill can deploy one locally (Node.js + npm).
+- `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
 ## Install
 
-Copy the `kanban-orchestrator/` directory into your opencode skill path:
+opencode requires the skill folder to be named `kanban-orchestrator`, matching the `name:` field in `SKILL.md`.
+
+**From SkillPort** (scanned, human-reviewed, checksum-verified, pinned in `skillport.lock`):
+
+```bash
+npx @skillporthq/cli@latest add riazrahaman/agentkanban
+```
+
+If the CLI places it somewhere other than your opencode skill path (for example `./skills/agentkanban/`), move and rename it to one of the paths below.
+
+**From GitHub:**
 
 ```bash
 # project-local
-cp -r kanban-orchestrator .opencode/skill/kanban-orchestrator
+git clone https://github.com/riazrahaman/kanban-orchestrator.git .opencode/skill/kanban-orchestrator
 
 # or global
-cp -r kanban-orchestrator ~/.config/opencode/skill/kanban-orchestrator
+git clone https://github.com/riazrahaman/kanban-orchestrator.git ~/.config/opencode/skill/kanban-orchestrator
 ```
-
-The directory name must match the `name:` field in the skill's frontmatter
-(`kanban-orchestrator`).
 
 ## Configure
 
-The skill needs three mandatory fields — `kanban_url`, `kanban_token`, and
-`project_name` — resolved from:
+Three fields are mandatory: `kanban_url`, `kanban_token`, `project_name`. The skill resolves them in this order:
 
-1. `.opencode/config.json` (also accepts `admin_token`), or
-2. environment variables `KANBAN_URL`, `KANBAN_TOKEN`, `KANBAN_PROJECT`,
-   `KANBAN_ADMIN_TOKEN`.
+1. `.opencode/config.json` → `kanban_url`, `kanban_token`, `project_name`, optional `admin_token`
+2. Environment → `KANBAN_URL`, `KANBAN_TOKEN`, `KANBAN_PROJECT`, `KANBAN_ADMIN_TOKEN`
 
-Never commit `.opencode/` — it holds tokens.
+```json
+{
+  "kanban_url": "http://localhost:4000",
+  "kanban_token": "<your-board-token>",
+  "project_name": "my-project",
+  "admin_token": "<optional-admin-token>"
+}
+```
 
-If you don't have a board yet, the skill can deploy one locally: it clones
-[agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board),
-installs each package, builds the client, and starts the server (default
-`http://localhost:4000`).
+`.opencode/` holds tokens. Add it to `.gitignore` before writing the file, and never stage it.
 
-## The protocol
+On start, the orchestrator calls `GET /projects` to verify connectivity and that the project exists. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
 
-1. **Set up** — check/create GitHub issue (`#<N>`), branch `feat/<slug>` or `fix/<slug>`, register the card with the real branch name and linked `"issues": ["#<N>"]`, record its id and version.
-2. **Build** — claim the card, dispatch the builder with evidence, await completion.
-3. **Review** — move to `IN_REVIEW`, dispatch the reviewer; findings loop back to building.
-4. **Test** — move to `IN_TEST`, dispatch the tester; a fail resets to `BACKLOG`.
-5. **Close** — update docs/version in lockstep, merge with `--no-ff`, tag `v<version>`, push, mark `DONE`, close GitHub issue, verify live deployment, report.
+**No board yet?** If `kanban_url` is missing, the skill deploys one locally:
 
-A full cycle that repeats three times must halt and report blockers.
+```bash
+git clone https://github.com/riazrahaman/agent-kanban-board.git
+cd agent-kanban-board
+npm --prefix server install
+npm --prefix client install
+npm run build
+npm start          # serves API + UI on http://localhost:4000 by default
+```
 
-## Safety highlights
+## The lifecycle
 
-- Optimistic locking: every `PATCH` sends `expected_version` (stale writes get
-  `409`).
-- Heartbeat at least every `KANBAN_CLAIM_TTL_MS / 2` (default TTL is
-  600,000 ms = 10 min).
-- Optional per-claim lease window via `{"lease_ms": <ms>}`, clamped to
-  `KANBAN_MIN_LEASE_MS` 60,000 / `KANBAN_MAX_LEASE_MS` 7,200,000.
-- Optional Telegram reclaim alerts when the reaper resets a card (off unless
-  `KANBAN_TELEGRAM_BOT_TOKEN` + `KANBAN_TELEGRAM_CHAT_ID` are set).
+**Stage A: Setup**
+- Find or create the GitHub issue (`#N`).
+- Branch from `main` as `feat/<slug>` or `fix/<slug>`.
+- `POST /tasks` with `project`, `title`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane.
+- Record the task `id` and `version`.
 
-## Releases & Changelog
+**Stage B: Build → Review → Test**
+- **BUILDING:** claim the card (`POST /tasks/:id/claim`), start heartbeats, dispatch the builder. Workers PATCH status and append logs; they never claim.
+- **IN_REVIEW:** PATCH to `IN_REVIEW` (no re-claim), dispatch the reviewer with the diff or commit range. Blocking findings are logged and the card goes back to `BUILDING`.
+- **IN_TEST:** PATCH to `IN_TEST`, dispatch the tester. A fail resets the card to `BACKLOG` and the cycle restarts.
 
-See [CHANGELOG.md](CHANGELOG.md) for notable changes and version history.
-Tested against [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) releases `v2.14.0` through `v2.15.1+`.
+**Stage C: Closure** (only after a test pass)
+- Update README / docs / CHANGELOG and bump versions in lockstep.
+- `git merge --no-ff`, `git tag -a v<version>`, push with tags.
+- PATCH to `DONE` with completion metadata, close the issue with `gh issue close`.
+- Verify the live deployment, then report commit hash, test output and status.
+
+A Build → Review → Test cycle that repeats **3 times** halts and reports blockers instead of looping forever.
+
+## Rules the orchestrator follows
+
+- **Roles:** orchestrator = `admin`; workers = `builder`, `reviewer`, `tester`.
+- **Headers on every request:** `x-agent-id`, `x-agent-role`, `x-api-token`.
+- **Claim to own, PATCH to move.** A status-only PATCH into an active stage creates an ownerless card, which the reaper resets to `BACKLOG`.
+- **Optimistic locking:** every PATCH sends `expected_version`. Stale writes get `409`.
+- **Leases:** default claim TTL is 10 min (`KANBAN_CLAIM_TTL_MS` = 600,000). Heartbeat at least every 2 minutes while holding a card; logs from the holder also extend the lease. A claim can request its own window with `{"lease_ms": <ms>}`, clamped between 60,000 and 7,200,000.
+- **Evidence or it didn't happen:** no stage transition without command output, test results or a commit hash.
+
+## Project scoping (the #1 gotcha)
+
+Every path that addresses a specific task must carry `?project=<project_name>`: `/tasks/:id`, `/:id/claim`, `/:id/heartbeat`, `/:id/logs`, and `GET /tasks`. Only `POST /tasks` takes the project in the JSON body. `GET /projects` needs no scoping.
+
+Without it, calls silently resolve against the `default` project.
+
+## Troubleshooting
+
+- **`403 ... not authorized for project 'default'`** → missing `?project=` on a task path.
+- **`404` on `GET /tasks/:id`** → same cause, missing `?project=`.
+- **`409 Invalid state transition from BACKLOG to <X>`** → the lease expired and the reaper reset the card. Re-claim and re-walk the stages. Check `git status` / `git log` on the task branch first: uncommitted work may still be on disk, but it was never committed.
+- **`409` on PATCH with a version mismatch** → someone else wrote first. Re-read the card and retry with the current `version`.
+- **Card keeps bouncing back to `BACKLOG`** → it was moved into an active stage by PATCH instead of claimed, or heartbeats stopped.
+
+## Optional: Telegram reclaim alerts
+
+When the reaper resets a card (`lease_expired` or `orphan_normalized`), the board can ping you on Telegram. Off unless both are set:
+
+```bash
+KANBAN_TELEGRAM_BOT_TOKEN=...
+KANBAN_TELEGRAM_CHAT_ID=...
+```
+
+Optional filters: `KANBAN_NOTIFY_PROJECTS`, `KANBAN_NOTIFY_EVENTS`, `KANBAN_BOARD_URL`. The notifier only listens; it never changes the board. Treat an alert as a prompt to inspect and re-claim.
+
+## Data notes
+
+- Branch values are normalized on write: blank, whitespace-only or non-string values become `null`; real refs like `feat/x` are kept verbatim.
+- `branch` is patchable: `PATCH {"branch": "<real-branch>"}` or `{"branch": null}`.
+- Legacy cards with `branch` = `task/<id>` can be cleaned with `PATCH {"branch": null}`.
+
+## What this skill touches
+
+- **Network:** your configured `kanban_url`, GitHub (via `git` / `gh`, including the board clone for local deploy), and your deployment's status / health check.
+- **Files:** your repo's working tree and branches, plus `.opencode/config.json` if you store config there.
+- **Tokens:** read from config or environment; `.opencode/` is kept out of git and never staged.
+
+## Versioning & releases
+
+From `2.14.3` on, the skill version in `SKILL.md` matches the [SkillPort listing](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban). Earlier GitHub releases (`v1.0.0`–`v1.2.0`) map to SkillPort versions as recorded in [CHANGELOG.md](CHANGELOG.md).
+
+Skill versions are independent of agent-kanban-board versions. Board compatibility is listed in each changelog entry.
+
+Release tags: [GitHub Releases](https://github.com/riazrahaman/kanban-orchestrator/releases).
 
 ## License
 
