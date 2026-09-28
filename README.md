@@ -55,15 +55,11 @@ installs each package, builds the client, and starts the server (default
 
 ## The protocol
 
-1. **Set up** — branch `feat/<slug>` or `fix/<slug>`, register the card with the
-   real branch name, record its id and version.
-2. **Build** — claim the card, dispatch the builder with evidence, await
-   completion.
-3. **Review** — move to `IN_REVIEW`, dispatch the reviewer; findings loop back
-   to building.
-4. **Test** — move to `IN_TEST`, dispatch the tester; a fail resets to
-   `BACKLOG`.
-5. **Close** — update docs, merge with `--no-ff`, push, mark `DONE`, report.
+1. **Set up** — check/create GitHub issue (`#<N>`), branch `feat/<slug>` or `fix/<slug>`, register the card with the real branch name and linked `"issues": ["#<N>"]`, record its id and version.
+2. **Build** — claim the card, dispatch the builder with evidence, await completion.
+3. **Review** — move to `IN_REVIEW`, dispatch the reviewer; findings loop back to building.
+4. **Test** — move to `IN_TEST`, dispatch the tester; a fail resets to `BACKLOG`.
+5. **Close** — update docs/version in lockstep, merge with `--no-ff`, tag `v<version>`, push, mark `DONE`, close GitHub issue, verify live deployment, report.
 
 A full cycle that repeats three times must halt and report blockers.
 
@@ -81,7 +77,7 @@ A full cycle that repeats three times must halt and report blockers.
 ## Releases & Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for notable changes and version history.
-Tested against [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) releases `v2.14.0` through `v2.14.3`.
+Tested against [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) releases `v2.14.0` through `v2.15.1+`.
 
 ## License
 

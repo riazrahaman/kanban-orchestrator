@@ -5,6 +5,19 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 Release tags are available on [GitHub Releases](https://github.com/riazrahaman/kanban-orchestrator/releases).
 
+## [1.2.0] — 2026-09-28
+
+Protocol alignment with [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) v2.15.1.
+
+### Added
+- **GitHub Issue Lifecycle**: Integrated formal GitHub issue tracking into Stage A (issue creation or linking via `"issues": ["#<N>"]`) and Stage C (issue resolution and closure via `gh issue close`).
+- **Release Tagging & Deployment Verification**: Added step-by-step release tagging (`git tag -a`) and production deployment verification (`railway status` and health checks) to Stage C closure protocol.
+- **Lockstep Documentation & Versioning**: Formalized lockstep version bumping across README, docs, and CHANGELOG.
+
+### Changed
+- Updated skill frontmatter version to `1.2.0`.
+- Documented compatibility with upstream `agent-kanban-board` through `v2.15.1+`.
+
 ## [1.1.0] — 2026-09-27
 
 Protocol alignment with [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) v2.14.3.
