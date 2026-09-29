@@ -1,7 +1,8 @@
 ---
 name: kanban-orchestrator
 description: "Strict Kanban-first orchestrator for delegated builds, tasks, and feature workflows using agent-kanban-board. Use when managing tasks on a kanban board, orchestrating builder, reviewer, and tester agent workflows, or deploying the local agent-kanban-board server."
-version: v2.14.4
+metadata:
+  version: "2.14.5"
 ---
 
 # Kanban Orchestrator Protocol
@@ -21,6 +22,8 @@ Check for these fields in the following order:
 1. `.opencode/config.json` (Expected: `kanban_url`, `kanban_token`, `project_name`, `admin_token`)
 2. Environment Variables: `KANBAN_URL`, `KANBAN_TOKEN`, `KANBAN_PROJECT`, `KANBAN_ADMIN_TOKEN`
 
+**`kanban_url` is the API base and ends in `/api`** (e.g. `http://localhost:4000/api`). Every path in this skill (`/tasks`, `/projects`, …) is relative to it. The board serves its web UI on every other path, so a `kanban_url` without `/api` makes `GET /projects` return HTML with a `200` instead of JSON. If a configured `kanban_url` lacks `/api`, append it.
+
 ### Automatic Local Deployment
 If `kanban_url` is not provided in `.opencode/config.json` or environment variables, deploy the Kanban server locally:
 1. Clone the board repository:
@@ -33,18 +36,21 @@ If `kanban_url` is not provided in `.opencode/config.json` or environment variab
    npm --prefix server install
    npm --prefix client install
    ```
-3. Build the client and start the board server (the API serves the built SPA on the same port):
+3. Build the client and start the board server with an auth token (the API serves the built SPA on the same port). The board refuses every write with `503` until `KANBAN_AUTH_TOKEN` is set, and it does not read `.env` files, so export the token in the shell that starts it:
    ```bash
    npm run build
+   export KANBAN_AUTH_TOKEN="$(openssl rand -hex 24)"
    npm start
    ```
    For a live-reloading client during development, run `npm --prefix client run dev` (Vite on `http://localhost:5173`) in a second terminal instead of `npm run build`.
-4. Verify the local server port (default `http://localhost:4000` or indicated in stdout) and set `kanban_url`.
-5. Obtain or configure the initial auth token to set `kanban_token`.
+4. Verify the local server port (default `4000`, or as indicated in stdout) and set `kanban_url` to `http://localhost:<port>/api`.
+5. Set `kanban_token` to the same value as `KANBAN_AUTH_TOKEN`.
 
 **CRITICAL**: If `project_name` or `kanban_token` cannot be determined after setup, you **MUST** halt and prompt the user to specify them.
 
-**Verification Step**: Once mandatory fields are acquired, perform `GET /projects` using the `kanban_token` in headers to verify connectivity and project existence.
+**Verification Step**: Once mandatory fields are acquired, verify the URL and the token separately:
+1. `GET /projects` must return a JSON array. HTML means `kanban_url` is missing `/api`. This call does **not** prove the token, because reads are open by default. It also does not prove the project exists: a project appears only after its first card is created, so a new `project_name` missing from the list is expected.
+2. The token is proven by the first write, the `POST /tasks` in Stage A: `201` = URL, token and project all valid; `401` = `kanban_token` does not match the board; `503` = the board has no token configured (see step 3 above).
 
 **Security**: Never commit configuration files. `.opencode/` holds authentication tokens. Confirm it is added to `.gitignore` before writing, and never stage `.opencode/` in git commits.
 
@@ -56,7 +62,7 @@ Verified endpoint scoping behavior:
 
 | Endpoint Call | Scoping Requirement | Notes |
 |---|---|---|
-| `POST /tasks` | In JSON Body: `{"project": "<project_name>", ...}` | Task creation is the only route taking project in body |
+| `POST /tasks` | In JSON Body: `{"id": "<id>", "title": "...", "project": "<project_name>", ...}` | Task creation is the only route taking project in body; `id` and `title` are required |
 | `PATCH /tasks/:id?project=X` | Query parameter: `?project=X` | Required for status moves and updates |
 | `PATCH /tasks/:id` (no `?project=`) | None | Fails with `403 Forbidden` |
 | `POST /tasks/:id/claim?project=X` | Query parameter: `?project=X` | Required to claim ownership and lease |
@@ -76,11 +82,13 @@ The state machine is enforced via role-based transitions. The Orchestrator opera
 ### Stage A: Feature Setup
 1. **GitHub Issue**: Check for an existing issue or file a new one (`gh issue create --title "<title>" --body "..."`). Note the issue number `#<N>`.
 2. **Branching**: Create `feat/<slug>` or `fix/<slug>` from `main`.
-3. **Registration**: `POST /tasks` with `project`, `title`, `description`, exact branch name, and linked issues:
-   - Determine the active branch with `git rev-parse --abbrev-ref HEAD` and pass that exact string.
+3. **Registration**: `POST /tasks` with `id`, `project`, `title`, `description`, exact branch name, and linked issues:
+   - **`id` is required and chosen by you**; the board does not generate one. Allowed characters are letters, digits, `_` and `-` only, so the branch name (which contains `/`) is not a valid id. Derive it from the branch slug, e.g. branch `feat/login-rate-limit` → id `feat-login-rate-limit`.
+   - Determine the active branch with `git rev-parse --abbrev-ref HEAD` and pass that exact string as `branch`.
    - Set `"issues": ["#<N>"]` in the task body so the task is structurally linked to GitHub and mirrors into the `ISSUES` swimlane.
    - Setting `branch` explicitly is critical for human operators and re-claim alerts.
-4. Record `task_id` and initial `version`.
+   - `400 id and title are required` → the body is missing `id` or `title`. `400 Invalid task id` → the id has a character outside `[A-Za-z0-9_-]`. `409 Task <project>/<id> already exists` → `GET /tasks/<id>?project=X`: resume that card if it is the same work, otherwise choose a new id.
+4. Record `task_id` (the `id` you sent) and initial `version` from the `201` response.
 
 ### Stage B: The Execution Cycle
 

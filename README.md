@@ -2,7 +2,7 @@
 
 **Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
 
-Version `v2.14.4` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v2.14.5` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
 
@@ -44,7 +44,7 @@ It is not a code generator and it does not replace your CI. It is a protocol tha
 
 ## Requirements
 
-- An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
+- An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai). The frontmatter also passes claude.ai's skill upload check, and the skill loads in Claude Code.
 - A running agent-kanban-board, tested against `v2.14.0` through `v2.15.1+`. No board yet? The skill can deploy one locally (Node.js + npm).
 - `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
@@ -55,10 +55,16 @@ opencode requires the skill folder to be named `kanban-orchestrator`, matching t
 **From SkillPort** (scanned, human-reviewed, checksum-verified, pinned in `skillport.lock`):
 
 ```bash
+npx @skillporthq/cli@latest login   # one-time, free API key
 npx @skillporthq/cli@latest add riazrahaman/agentkanban
 ```
 
-If the CLI places it somewhere other than your opencode skill path (for example `./skills/agentkanban/`), move and rename it to one of the paths below.
+The CLI installs into the current directory, under a publisher-namespaced folder:
+
+- default (`claude-code` target): `.claude/skills/riazrahaman__agentkanban/`. Run it from `~` to put the skill in `~/.claude/skills/`, where Claude Code loads it in every project.
+- `--target generic`: `./skills/riazrahaman__agentkanban/`
+
+For opencode, copy the installed folder to `.opencode/skill/kanban-orchestrator/` or `~/.config/opencode/skill/kanban-orchestrator/`.
 
 **From GitHub:**
 
@@ -79,18 +85,20 @@ Three fields are mandatory: `kanban_url`, `kanban_token`, `project_name`. The sk
 
 ```json
 {
-  "kanban_url": "http://localhost:4000",
+  "kanban_url": "http://localhost:4000/api",
   "kanban_token": "<your-board-token>",
   "project_name": "my-project",
   "admin_token": "<optional-admin-token>"
 }
 ```
 
+`kanban_url` is the API base and must end in `/api`. Without it, `GET /projects` returns the board's web page (HTML, `200`) instead of JSON.
+
 `.opencode/` holds tokens. Add it to `.gitignore` before writing the file, and never stage it.
 
-On start, the orchestrator calls `GET /projects` to verify connectivity and that the project exists. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
+On start, the orchestrator calls `GET /projects` to check the URL returns JSON. That call doesn't prove the token, because reads are open by default, and a new project is only listed after its first card. The token is proven by the first `POST /tasks`. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
 
-**No board yet?** If `kanban_url` is missing, the skill deploys one locally:
+**No board yet?** If `kanban_url` is missing, the skill deploys one locally. The board refuses writes (`503`) until it has a token, and it doesn't read `.env` files, so export one before starting:
 
 ```bash
 git clone https://github.com/riazrahaman/agent-kanban-board.git
@@ -98,7 +106,8 @@ cd agent-kanban-board
 npm --prefix server install
 npm --prefix client install
 npm run build
-npm start          # serves API + UI on http://localhost:4000 by default
+export KANBAN_AUTH_TOKEN="$(openssl rand -hex 24)"   # also your kanban_token
+npm start          # API on http://localhost:4000/api, UI on http://localhost:4000
 ```
 
 ## The lifecycle
@@ -106,7 +115,7 @@ npm start          # serves API + UI on http://localhost:4000 by default
 **Stage A: Setup**
 - Find or create the GitHub issue (`#N`).
 - Branch from `main` as `feat/<slug>` or `fix/<slug>`.
-- `POST /tasks` with `project`, `title`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane.
+- `POST /tasks` with `id`, `project`, `title`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane. The board doesn't generate ids: the orchestrator picks one from `[A-Za-z0-9_-]`, e.g. branch `feat/login-rate-limit` → id `feat-login-rate-limit`.
 - Record the task `id` and `version`.
 
 **Stage B: Build → Review → Test**
@@ -139,6 +148,12 @@ Without it, calls silently resolve against the `default` project.
 
 ## Troubleshooting
 
+- **`GET /projects` returns HTML** → `kanban_url` is missing `/api`.
+- **`503 Mutating API is unavailable until an auth token is configured`** → the board was started without `KANBAN_AUTH_TOKEN`.
+- **`401 Unauthorized: valid token required for mutating operations`** → `kanban_token` doesn't match the board's token.
+- **`400 id and title are required`** → `POST /tasks` needs a caller-chosen `id`.
+- **`400 Invalid task id`** → the id has a character outside `[A-Za-z0-9_-]`, e.g. a `/` copied from the branch name.
+- **`409 Task <project>/<id> already exists`** → that id is taken. Resume the existing card if it's the same work, otherwise pick a new id.
 - **`403 ... not authorized for project 'default'`** → missing `?project=` on a task path.
 - **`404` on `GET /tasks/:id`** → same cause, missing `?project=`.
 - **`409 Invalid state transition from BACKLOG to <X>`** → the lease expired and the reaper reset the card. Re-claim and re-walk the stages. Check `git status` / `git log` on the task branch first: uncommitted work may still be on disk, but it was never committed.
