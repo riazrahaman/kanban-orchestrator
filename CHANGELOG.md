@@ -13,6 +13,24 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [2.14.5] — 2026-09-29
+
+Protocol schema alignment and dynamic versioning guidance.
+
+### Added
+- **POST /tasks Required Schema**: Explicitly documented mandatory caller-supplied `id` (slug), `status: "BACKLOG"`, and `round: 1` in `SKILL.md` Stage A. Documented that work statuses (`BUILDING`, `IN_REVIEW`, etc.) require privileged roles and return `403`.
+- **Dynamic Versioning & 409 Error Inspection**: Documented that `expected_version` must be re-read before each `PATCH` because intermediate `claim`, `logs`, and `heartbeat` calls increment card versions on the server. Added distinct handling for `409 Version mismatch` (retry with fresh version) vs `409 Invalid state transition` (lease expired and reaped; re-claim card).
+
+### Fixed
+- **Plural Install Path**: Corrected install paths in `SKILL.md` and `README.md` to `.opencode/skills/kanban-orchestrator/` (plural).
+
+## [2.14.4] — 2026-09-28
+
+Human-facing overview and docs structure.
+
+### Changed
+- Rewrote `README.md` as human-facing overview with visual architecture diagrams and clear stage workflows.
+
 ## [2.14.3] — 2026-09-28
 
 Version renumbering only. The protocol is unchanged from `1.2.0`.

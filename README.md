@@ -2,7 +2,7 @@
 
 **Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
 
-Version `v2.14.4` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v2.14.5` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
 
@@ -45,7 +45,7 @@ It is not a code generator and it does not replace your CI. It is a protocol tha
 ## Requirements
 
 - An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
-- A running agent-kanban-board, tested against `v2.14.0` through `v2.15.1+`. No board yet? The skill can deploy one locally (Node.js + npm).
+- A running agent-kanban-board, tested against `v2.14.0` through `v2.15.3+`. No board yet? The skill can deploy one locally (Node.js + npm).
 - `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
 ## Install
@@ -64,10 +64,10 @@ If the CLI places it somewhere other than your opencode skill path (for example 
 
 ```bash
 # project-local
-git clone https://github.com/riazrahaman/kanban-orchestrator.git .opencode/skill/kanban-orchestrator
+git clone https://github.com/riazrahaman/kanban-orchestrator.git .opencode/skills/kanban-orchestrator
 
 # or global
-git clone https://github.com/riazrahaman/kanban-orchestrator.git ~/.config/opencode/skill/kanban-orchestrator
+git clone https://github.com/riazrahaman/kanban-orchestrator.git ~/.config/opencode/skills/kanban-orchestrator
 ```
 
 ## Configure
@@ -106,8 +106,8 @@ npm start          # serves API + UI on http://localhost:4000 by default
 **Stage A: Setup**
 - Find or create the GitHub issue (`#N`).
 - Branch from `main` as `feat/<slug>` or `fix/<slug>`.
-- `POST /tasks` with `project`, `title`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane.
-- Record the task `id` and `version`.
+- `POST /tasks` with caller-supplied `id`, `project`, `title`, `description`, `round: 1`, `status: "BACKLOG"`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`), and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane. Creating directly into work states requires privileged credentials.
+- Record the task `id` and initial `version`.
 
 **Stage B: Build → Review → Test**
 - **BUILDING:** claim the card (`POST /tasks/:id/claim`), start heartbeats, dispatch the builder. Workers PATCH status and append logs; they never claim.
@@ -127,7 +127,7 @@ A Build → Review → Test cycle that repeats **3 times** halts and reports blo
 - **Roles:** orchestrator = `admin`; workers = `builder`, `reviewer`, `tester`.
 - **Headers on every request:** `x-agent-id`, `x-agent-role`, `x-api-token`.
 - **Claim to own, PATCH to move.** A status-only PATCH into an active stage creates an ownerless card, which the reaper resets to `BACKLOG`.
-- **Optimistic locking:** every PATCH sends `expected_version`. Stale writes get `409`.
+- **Optimistic locking:** every PATCH sends the fresh current `expected_version` (re-read before each PATCH; intermediate claims, logs, and heartbeats increment card version). Distinguish `409 Version mismatch` (retry with fresh version) from `409 Invalid state transition` (reaper reset after lease loss; re-claim). Stale writes get `409`.
 - **Leases:** default claim TTL is 10 min (`KANBAN_CLAIM_TTL_MS` = 600,000). Heartbeat at least every 2 minutes while holding a card; logs from the holder also extend the lease. A claim can request its own window with `{"lease_ms": <ms>}`, clamped between 60,000 and 7,200,000.
 - **Evidence or it didn't happen:** no stage transition without command output, test results or a commit hash.
 
