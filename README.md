@@ -115,7 +115,7 @@ npm start          # API on http://localhost:4000/api, UI on http://localhost:40
 **Stage A: Setup**
 - Find or create the GitHub issue (`#N`).
 - Branch from `main` as `feat/<slug>` or `fix/<slug>`.
-- `POST /tasks` with `id`, `project`, `title`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane. The board doesn't generate ids: the orchestrator picks one from `[A-Za-z0-9_-]`, e.g. branch `feat/login-rate-limit` → id `feat-login-rate-limit`.
+- `POST /tasks` with `id`, `title`, `"status": "BACKLOG"`, `"round": 1`, `project`, `description`, the exact branch name (from `git rev-parse --abbrev-ref HEAD`) and `"issues": ["#N"]`, so the card mirrors into the ISSUES swimlane. All four of `id`, `title`, `status` and `round` are required. The board doesn't generate ids: the orchestrator picks one from `[A-Za-z0-9_-]`, e.g. branch `feat/login-rate-limit` → id `feat-login-rate-limit`.
 - Record the task `id` and `version`.
 
 **Stage B: Build → Review → Test**
@@ -153,6 +153,7 @@ Without it, calls silently resolve against the `default` project.
 - **`401 Unauthorized: valid token required for mutating operations`** → `kanban_token` doesn't match the board's token.
 - **`400 id and title are required`** → `POST /tasks` needs a caller-chosen `id`.
 - **`400 Invalid task id`** → the id has a character outside `[A-Za-z0-9_-]`, e.g. a `/` copied from the branch name.
+- **`400 Invalid status: undefined`** / **`400 round must be a positive integer`** → create the card with `"status": "BACKLOG"` and `"round": 1`.
 - **`409 Task <project>/<id> already exists`** → that id is taken. Resume the existing card if it's the same work, otherwise pick a new id.
 - **`403 ... not authorized for project 'default'`** → missing `?project=` on a task path.
 - **`404` on `GET /tasks/:id`** → same cause, missing `?project=`.

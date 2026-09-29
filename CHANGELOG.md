@@ -15,10 +15,10 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 
 ## [2.14.5] — 2026-09-29
 
-Protocol fixes found by checking `SKILL.md` against the agent-kanban-board server source, plus claude.ai upload compatibility.
+Protocol fixes found by checking `SKILL.md` against the agent-kanban-board server source and a live `v2.15.1` board, plus claude.ai upload compatibility.
 
 ### Fixed
-- **Task registration sends `id`**: `POST /tasks` rejects a body without a caller-chosen `id` (`400 id and title are required`). Stage A now requires one and documents the allowed charset (`[A-Za-z0-9_-]`; a branch name with `/` is not a valid id) and the `409 Task <project>/<id> already exists` recovery.
+- **Task registration sends every required field**: `POST /tasks` requires `id`, `title`, `status` and `round`. Stage A sent none of `id`, `status` or `round`, so the first card always failed with a `400`. Stage A now includes a full example body (`"status": "BACKLOG"`, `"round": 1`), the id charset (`[A-Za-z0-9_-]`; a branch name with `/` is not a valid id), each create error, and the `409 Task <project>/<id> already exists` recovery.
 - **`kanban_url` includes `/api`**: every board route lives under `/api`; without it `GET /projects` returns the web UI's HTML with a `200`. The config section and local deployment step 4 now say so.
 - **Verification checks URL and token separately**: `GET /projects` is readable without a token by default and lists a project only after its first card, so it can't verify the token or project existence. The first `POST /tasks` is now the token check (`201` / `401` / `503`).
 - **Local deployment sets a token**: the board refuses writes with `503` until `KANBAN_AUTH_TOKEN` is set and doesn't read `.env`. Step 3 now exports it before `npm start`, and step 5 reuses it as `kanban_token`.

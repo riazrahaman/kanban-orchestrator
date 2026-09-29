@@ -62,7 +62,7 @@ Verified endpoint scoping behavior:
 
 | Endpoint Call | Scoping Requirement | Notes |
 |---|---|---|
-| `POST /tasks` | In JSON Body: `{"id": "<id>", "title": "...", "project": "<project_name>", ...}` | Task creation is the only route taking project in body; `id` and `title` are required |
+| `POST /tasks` | In JSON Body: `{"id": "<id>", "title": "...", "status": "BACKLOG", "round": 1, "project": "<project_name>", ...}` | Task creation is the only route taking project in body; `id`, `title`, `status` and `round` are required |
 | `PATCH /tasks/:id?project=X` | Query parameter: `?project=X` | Required for status moves and updates |
 | `PATCH /tasks/:id` (no `?project=`) | None | Fails with `403 Forbidden` |
 | `POST /tasks/:id/claim?project=X` | Query parameter: `?project=X` | Required to claim ownership and lease |
@@ -82,12 +82,25 @@ The state machine is enforced via role-based transitions. The Orchestrator opera
 ### Stage A: Feature Setup
 1. **GitHub Issue**: Check for an existing issue or file a new one (`gh issue create --title "<title>" --body "..."`). Note the issue number `#<N>`.
 2. **Branching**: Create `feat/<slug>` or `fix/<slug>` from `main`.
-3. **Registration**: `POST /tasks` with `id`, `project`, `title`, `description`, exact branch name, and linked issues:
+3. **Registration**: `POST /tasks` with `id`, `title`, `status`, `round`, `project`, `description`, exact branch name, and linked issues:
+   ```json
+   {
+     "id": "feat-login-rate-limit",
+     "title": "Rate-limit the login endpoint",
+     "status": "BACKLOG",
+     "round": 1,
+     "project": "<project_name>",
+     "description": "...",
+     "branch": "feat/login-rate-limit",
+     "issues": ["#<N>"]
+   }
+   ```
    - **`id` is required and chosen by you**; the board does not generate one. Allowed characters are letters, digits, `_` and `-` only, so the branch name (which contains `/`) is not a valid id. Derive it from the branch slug, e.g. branch `feat/login-rate-limit` → id `feat-login-rate-limit`.
+   - **`status` must be `"BACKLOG"` and `round` must be `1`.** Both are required. Creating a card directly in an active stage needs a privileged credential and skips the claim contract; the claim in Stage B moves it to `BUILDING`.
    - Determine the active branch with `git rev-parse --abbrev-ref HEAD` and pass that exact string as `branch`.
    - Set `"issues": ["#<N>"]` in the task body so the task is structurally linked to GitHub and mirrors into the `ISSUES` swimlane.
    - Setting `branch` explicitly is critical for human operators and re-claim alerts.
-   - `400 id and title are required` → the body is missing `id` or `title`. `400 Invalid task id` → the id has a character outside `[A-Za-z0-9_-]`. `409 Task <project>/<id> already exists` → `GET /tasks/<id>?project=X`: resume that card if it is the same work, otherwise choose a new id.
+   - `400 id and title are required` → the body is missing `id` or `title`. `400 Invalid task id` → the id has a character outside `[A-Za-z0-9_-]`. `400 Invalid status: undefined` → `status` is missing. `400 round must be a positive integer` → `round` is missing. `409 Task <project>/<id> already exists` → `GET /tasks/<id>?project=X`: resume that card if it is the same work, otherwise choose a new id.
 4. Record `task_id` (the `id` you sent) and initial `version` from the `201` response.
 
 ### Stage B: The Execution Cycle
