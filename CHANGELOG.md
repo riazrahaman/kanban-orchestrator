@@ -13,7 +13,7 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
-## [2.14.5] — 2026-09-29
+## [2.14.6] — 2026-09-29
 
 Protocol schema alignment and dynamic versioning guidance.
 
