@@ -13,6 +13,18 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [2.14.7] — 2026-10-04
+
+Reclaim and lease semantics, inline log cap with JSONL sidecar spill, and ISSUES swimlane reconciliation.
+
+### Added
+- **Reclaim & Lease Semantics (§4)**: Documented that unowned cards reap back to `BACKLOG` and `BACKLOG → IN_REVIEW` is an invalid transition requiring `POST /claim` first. Documented claim TTL (`KANBAN_CLAIM_TTL_MS`, 600,000 ms = 10 min) and heartbeat interval guidelines (every 2 minutes, lease clamped 60,000 ms to 7,200,000 ms).
+- **Log Read Path (§5)**: Documented `KANBAN_INLINE_LOG_CAP=50` limit on inline task logs with JSONL sidecar spill, and complete log retrieval via `GET /tasks/:id/logs?include_spilled=1`.
+- **ISSUES Swimlane Overlay (§5)**: Clarified that `ISSUES` is a cross-reference overlay (`issues.length > 0`) rather than a status lane. Documented retroactive linking via `POST /tasks/:id/issues` with CAS `expected_version`.
+
+### Changed
+- **Stage A Issue Requirement**: Reconciled Stage A to reflect the operator's standing decision (30 Sep 2026) not to file a GitHub issue per card; cards link only when an issue already exists.
+
 ## [2.14.6] — 2026-09-29
 
 Protocol schema alignment and dynamic versioning guidance.
