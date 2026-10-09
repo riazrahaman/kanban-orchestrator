@@ -2,7 +2,7 @@
 
 **Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
 
-Version `v3.0.0` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v3.0.2` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
 
@@ -93,7 +93,7 @@ Three fields are mandatory: `kanban_url`, `kanban_token`, `project_name`. The sk
 
 `.opencode/` holds tokens. Add it to `.gitignore` before writing the file, and never stage it.
 
-On start, the orchestrator calls `GET /projects` to verify connectivity and that the project exists. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
+On start, the orchestrator calls `GET /projects` to verify connectivity and that the project exists, and `GET /api/health` to confirm the board is `v3.0.0` or later. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
 
 **No board yet?** If `kanban_url` is missing, the skill deploys one locally:
 
@@ -140,7 +140,7 @@ A Build → Review → Test cycle that repeats **3 times** halts and reports blo
 
 ## Project scoping (the #1 gotcha)
 
-Every path that addresses a specific task must carry `?project=<project_name>`: `/tasks/:id`, `/:id/claim`, `/:id/heartbeat`, `/:id/logs`, and `GET /tasks`. Only `POST /tasks` takes the project in the JSON body. `GET /projects` needs no scoping.
+Every path that addresses a specific task must carry `?project=<project_name>`: `/tasks/:id`, `/:id/claim`, `/:id/heartbeat`, `/:id/logs`, and `GET /tasks`. Only `POST /tasks` takes the project in the JSON body. `GET /projects` and `GET /api/health` need no scoping.
 
 Without it, calls silently resolve against the `default` project.
 

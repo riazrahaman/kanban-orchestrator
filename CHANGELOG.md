@@ -13,6 +13,19 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.0.2] — 2026-10-09
+
+Board version check endpoint fix and documentation alignment.
+
+### Fixed
+- **Board Version Check (§1)**: Changed the version check in `SKILL.md` to query `GET /api/health` instead of `GET /projects`. `GET /api/health` returns the server's `"version"` field (supported on both v2.16.2 and v3.0.0+), whereas `GET /projects` returns an array of project summaries with no version field.
+- **README Header Version**: Updated `README.md` header from `v3.0.0` to `v3.0.2`.
+
+## [3.0.1] — 2026-10-09
+
+### Added
+- **Board Version Gate (§1)**: Added automatic version requirement check in `SKILL.md` to verify the connected board is v3.0.0+.
+
 ## [3.0.0] — 2026-10-09
 
 Migration to AgentOS 8-state workflow lifecycle and compatibility with `agent-kanban-board` v3.0.0 (ADR-004).
