@@ -13,6 +13,20 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.0.0] — 2026-10-09
+
+Migration to AgentOS 8-state workflow lifecycle and compatibility with `agent-kanban-board` v3.0.0 (ADR-004).
+
+### Added
+- **AgentOS 8-State Workflow (§3)**: Replaced legacy 4-state pipeline with 8 canonical states: `BACKLOG → READY → PLANNING → IN_PROGRESS → IN_REVIEW → VALIDATION → READY_TO_SHIP → DONE` (+ `BLOCKED`).
+- **Expanded Role Permissions (§3, §4)**: Added role-based transitions for `planner` (`READY → PLANNING`), `validator` (`VALIDATION → READY_TO_SHIP`), and `releaser` (`READY_TO_SHIP → DONE`).
+- **Progress Stall Timeout (§4)**: Documented `KANBAN_PROGRESS_STALL_MS` (default 30m) reaper support alongside lease expiration.
+- **Bug Reports Note (§5)**: Documented visitor bug report filing via server without unmanaged card generation.
+
+### Changed
+- **Entry into Active Stages (§3)**: Cards must be promoted to `READY` before being claimed into `IN_PROGRESS` or `PLANNING`. Claiming from `READY` establishes lease ownership.
+- **Board Compatibility**: Updated target compatibility to `agent-kanban-board` v3.0.0+ (with transparent backward compatibility for v2.x status aliases).
+
 ## [2.14.7] — 2026-10-04
 
 Reclaim and lease semantics, inline log cap with JSONL sidecar spill, and ISSUES swimlane reconciliation.
