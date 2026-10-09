@@ -46,6 +46,8 @@ If `kanban_url` is not provided in `.opencode/config.json` or environment variab
 
 **Verification Step**: Once mandatory fields are acquired, perform `GET /projects` using the `kanban_token` in headers to verify connectivity and project existence.
 
+**Version Check**: After successful connectivity, read the board version from the response and verify it is **v3.0.0 or later**. If the version is below 3.0.0, **HALT immediately** and ask the user to upgrade their agent-kanban-board instance to v3.0.0+. The skill requires v3.0.0+ for proper status handling (v3 accepts legacy v2 statuses for compatibility).
+
 **Security**: Never commit configuration files. `.opencode/` holds authentication tokens. Confirm it is added to `.gitignore` before writing, and never stage `.opencode/` in git commits.
 
 ## 2. Project Scoping — `?project=` is MANDATORY on task paths
