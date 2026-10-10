@@ -13,6 +13,17 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.1.0] — 2026-10-10
+
+Boot-time credential-map coverage check integration and board v3.1.0 compatibility.
+
+### Added
+- **Credential-Map Coverage Check (§1)**: Updated the boot verification protocol to inspect `credential_map: {status, covered, missing, extra}` returned by `GET /api/health` on `agent-kanban-board` v3.1.0+. If the configured `project_name` is listed in `missing` or the credential map is `undercovered`/`malformed`, the orchestrator immediately alerts the operator to restore the missing token rather than encountering delayed `403 Forbidden` errors during task mutations.
+- **Endpoint Reference (§2)**: Noted `credential_map` in the unscoped endpoints table for `GET /api/health`.
+
+### Changed
+- **Board Compatibility**: Declared official compatibility and recommendations for `agent-kanban-board` v3.1.0+.
+
 ## [3.0.2] — 2026-10-09
 
 Board version check endpoint fix and documentation alignment.
