@@ -1,7 +1,7 @@
 ---
 name: kanban-orchestrator
 description: "Strict Kanban-first orchestrator for delegated builds, tasks, and feature workflows using agent-kanban-board. Use when managing tasks on a kanban board, orchestrating builder, reviewer, and tester agent workflows, or deploying the local agent-kanban-board server."
-version: 3.1.0
+version: 3.2.1
 ---
 
 # Kanban Orchestrator Protocol
@@ -48,9 +48,9 @@ If `kanban_url` is not provided in `.opencode/config.json` or environment variab
 
 **Version & Credential-Map Check**: Call `GET /api/health` and inspect the response:
 1. **Board Version Gate**: Read the `version` field from the response to verify the board is **v3.0.0 or later** (semver `>= 3.0.0`). Note that `GET /projects` does not return a version field; only `GET /api/health` reports the server version (present on both v2.16.2 and v3.0.0+). If the version is below 3.0.0, **HALT immediately** and ask the user to upgrade their agent-kanban-board instance to v3.0.0+. The skill requires v3.0.0+ for proper status handling (v3 accepts legacy v2 statuses for compatibility).
-2. **Credential-Map Coverage Verification (§2.10)**: When connecting to `agent-kanban-board` v3.1.0+, `GET /api/health` includes a `credential_map: {status, covered, missing, extra}` payload:
+2. **Credential-Map Coverage Verification (§2.10)**: When connecting to `agent-kanban-board` v3.1.0+, `GET /api/health` includes a `credential_map: {status, covered, missing_count, extra_count}` payload (plus `missing` and `extra` project name arrays when authenticated with a valid token in v3.2.0+):
    - Check if `credential_map.status` is `"undercovered"` or `"malformed"`.
-   - Check if your configured `project_name` is listed in `credential_map.missing` (`missing.includes(project_name)`).
+   - When authenticated, check if your configured `project_name` is listed in `credential_map.missing` (`missing?.includes(project_name)`). Unauthenticated probes alert on `credential_map.missing_count > 0`.
    - If your project is missing or the credential map is undercovered, **warn or halt immediately**: the board has stored tasks for the project but lacks an active token entry in `KANBAN_PROJECT_TOKENS`. Future task mutations will fail with `403 Forbidden: token is not authorized for project '<project_name>'`. Alert the operator to restore the missing token in the server's environment configuration (e.g. Railway / Render).
 
 **Security**: Never commit configuration files. `.opencode/` holds authentication tokens. Confirm it is added to `.gitignore` before writing, and never stage `.opencode/` in git commits.
@@ -73,7 +73,7 @@ Verified endpoint scoping behavior:
 | `GET /tasks/:id` (no `?project=`) | None | Fails with `404 Not Found` |
 | `GET /tasks?project=X` | Query parameter: `?project=X` | Lists tasks within project |
 | `GET /projects` | No scoping needed | Global project list |
-| `GET /api/health` | No scoping needed | Server health, version probe (`version`), and credential-map status (`credential_map` v3.1.0+) |
+| `GET /api/health` | No scoping needed | Server health, version probe (`version`), and credential-map status (`credential_map` v3.1.0+, project name privacy v3.2.0+) |
 
 **Rule**: Append `?project=<project_name>` to every path addressing a specific task (`/:id`, `/:id/logs`, `/:id/claim`, `/:id/heartbeat`). A `403` referencing project `'default'` indicates a missing query parameter.
 
@@ -168,6 +168,8 @@ Validated by a `test_pass` signal and promoted to `READY_TO_SHIP`:
 - **Heartbeat & Leases**: Claim TTL is `KANBAN_CLAIM_TTL_MS` (default 600,000 ms = 10 min). Issue `POST /tasks/:id/heartbeat?project=X` at least every 2 minutes while holding a card. A claim may also request an explicit window with `{"lease_ms": <ms>}` (clamped to `KANBAN_MIN_LEASE_MS` 60,000 and `KANBAN_MAX_LEASE_MS` 7,200,000). Logs from the holder also extend the lease.
 - **3-Cycle Limit**: If a cycle (Build → Review → Test) repeats 3 times, halt and report blockers.
 - **Evidence-Based Success**: Never transition stages without explicit command output, test results, or commit hashes.
+- **Rate Limiting & Proxy Configuration**: In `v3.2.1+`, the board limits invalid authentication attempts (`KANBAN_AUTH_RATE_LIMIT_PER_MIN`, default 60/min) tracked per client IP using Express's `req.ip`. Reverse proxy deployments must set `KANBAN_TRUST_PROXY` to the expected proxy depth (e.g., `1`, `loopback`, or `true`) so client IPs isolate accurately. If you receive `429 Too Many Requests: authentication rate limit exceeded`, respect the `Retry-After` header before retrying, and verify token configurations to avoid lockout.
+- **Payload & Encoding Standards**: In `v3.2.1+`, the server strictly translates body-parser errors: unsupported `Content-Encoding` returns `415 Unsupported Media Type` (`error: "unsupported_encoding"`), while payload corruption or length violations return `400 Bad Request` (`request_size_invalid`, `request_aborted`). Orchestrators and workers must send standard uncompressed JSON payloads (`Content-Type: application/json; charset=utf-8`) under 100KB.
 
 ### Reclaim Alerts (optional)
 
@@ -206,3 +208,12 @@ POST /tasks/:id/issues?project=X   { "issue_id": "#75", "expected_version": <cur
 Legacy cards created prior to normalization can be cleaned by:
 1. `PATCH /tasks/:id?project=X` with `{"branch": null}`.
 2. Sweeping cards where `branch` equals `task/<id>`.
+
+### Mobile & Web UI Ergonomics (v3.2.1+)
+
+The board dashboard includes mobile touch optimizations:
+- Form controls on coarse touch devices use standard proportional sans typography (`font-family: var(--font-sans)`), avoiding monospaced layout clipping.
+- Dropdown select elements use compact `13px` sizing on mobile, preventing oversized select boxes, while text inputs remain at `16px` to prevent iOS Safari auto-zoom.
+- Safe-area bottom clearance (`pb-[calc(5rem+env(safe-area-inset-bottom,0px))]`) ensures task cards scroll completely clear of Safari's floating navigation bar.
+- Small-screen container widths clamp to prevent header and filter control truncation on 390px phone viewports.
+

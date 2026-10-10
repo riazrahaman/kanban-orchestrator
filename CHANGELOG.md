@@ -13,6 +13,20 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.2.1] — 2026-10-10
+
+Reverse proxy authentication rate-limiting guidelines, strict body-parser error handling standards, and mobile UI viewport ergonomics.
+
+### Added
+- **Rate-Limiting & Proxy Trust Protocol (§4)**: Documented Express `req.ip` derivation and `KANBAN_TRUST_PROXY` proxy hop depth requirements for client IP isolation in `v3.2.1+`. Documented `429 Too Many Requests` backoff protocol respecting `Retry-After`.
+- **Payload & Encoding Standards (§4)**: Documented `415 unsupported_encoding` and `400 request_size_invalid` / `request_aborted` body-parser error codes in `v3.2.1+`. Mandated uncompressed UTF-8 JSON payloads under 100KB.
+- **Credential-Map Name Privacy (§1)**: Documented that `GET /api/health` withholds `missing` and `extra` project name arrays from unauthenticated probes (providing `missing_count` and `extra_count`), while authenticated callers receive complete project name lists.
+- **Mobile Ergonomics & Safari Clearance (§5)**: Added reference notes for mobile viewport font sizing (13px selects, 16px text inputs) and safe-area floating bar clearance (`pb-[calc(5rem+env(safe-area-inset-bottom,0px))]`).
+- **Troubleshooting Guide**: Added troubleshooting steps for `429 Too Many Requests` (auth rate limiting) and `415 Unsupported Media Type` (unsupported encoding).
+
+### Changed
+- **Board Compatibility**: Updated target recommendation to `agent-kanban-board` v3.2.1+.
+
 ## [3.1.0] — 2026-10-10
 
 Boot-time credential-map coverage check integration and board v3.1.0 compatibility.
