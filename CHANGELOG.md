@@ -13,6 +13,19 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.2.2] — 2026-10-10
+
+Mobile full-bleed background, bottom clearance reclamation, zoom restriction, and header disclosure persistence.
+
+### Added
+- **Mobile Viewport & Zoom Policy (§5)**: Documented `user-scalable=no, maximum-scale=1.0` viewport pinning and `touch-action: manipulation` across touch targets to eliminate accidental mobile zooming.
+- **Full-Bleed Safari Background Protocol (§5)**: Documented `html, body` background styling and synchronized `theme-color` meta tags to ensure Safari's dynamic title bar and floating tab bar integrate seamlessly with the theme background.
+- **Reclaimed Column Clearance (§5)**: Documented removal of artificial 5rem padding in board column scrolling, recovering vertical real estate above floating mobile browser chrome.
+- **Header Disclosure Persistence (§5)**: Documented `kanban.headerOpen` state persistence in localStorage for narrow viewports and split-window modes.
+
+### Changed
+- **Board Compatibility**: Updated target recommendation to `agent-kanban-board` v3.2.2+.
+
 ## [3.2.1] — 2026-10-10
 
 Reverse proxy authentication rate-limiting guidelines, strict body-parser error handling standards, and mobile UI viewport ergonomics.
