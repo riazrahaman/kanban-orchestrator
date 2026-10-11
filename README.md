@@ -2,7 +2,7 @@
 
 **Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
 
-Version `v3.2.2` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v3.3.0` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
 
@@ -27,7 +27,7 @@ The full protocol lives in [`SKILL.md`](SKILL.md). This README is the human-faci
         ├── PATCH (expected_version) ──→ [IN_REVIEW] ────────────┘
         │    dispatch REVIEWER                 │ approve
         │                                      ↓
-        ├── PATCH (expected_version) ──→ [VALIDATION] ── fail ──→ [IN_PROGRESS / READY]
+        ├── PATCH (expected_version) ──→ [VALIDATION] ── fail ──→ [IN_PROGRESS]
         │    dispatch TESTER / VALIDATOR       │ pass
         │                                      ↓
         ├── PATCH (expected_version) ──→ [READY_TO_SHIP]
@@ -36,7 +36,7 @@ The full protocol lives in [`SKILL.md`](SKILL.md). This README is the human-faci
                                                ↓
                               close issue #N → verify deployment → report
 
-  Heartbeats keep the lease alive. Lease lost or progress stalled → the reaper returns the card to BACKLOG.
+  Heartbeats keep the lease alive. Lease lost or progress stalled → the reaper returns the card to READY.
 ```
 
 ## When to use it
@@ -50,7 +50,7 @@ It is not a code generator and it does not replace your CI. It is a protocol tha
 ## Requirements
 
 - An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
-- A running agent-kanban-board v3.0.0 or later (v3.2.1+ recommended for proxy rate-limiting, strict payload error handling, and credential-map protections); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
+- A running agent-kanban-board v3.0.0 or later (v3.3.0+ recommended for per-token project name isolation, proxy rate-limiting, strict payload error handling, and credential-map protections); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
 - `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
 ## Install
@@ -93,7 +93,7 @@ Three fields are mandatory: `kanban_url`, `kanban_token`, `project_name`. The sk
 
 `.opencode/` holds tokens. Add it to `.gitignore` before writing the file, and never stage it.
 
-On start, the orchestrator calls `GET /projects` to verify connectivity and that the project exists, and `GET /api/health` to confirm the board is `v3.0.0` or later and inspects `credential_map` (v3.1.0+; project names withheld from unauthenticated probes in v3.2.0+) to verify project token coverage. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
+On start, the orchestrator calls `GET /projects` with authentication headers (`x-api-token: <kanban_token>`) to verify connectivity and that the project exists, and `GET /api/health` to confirm the board is `v3.0.0` or later and inspects `credential_map` (v3.1.0+; project names withheld from unauthenticated probes in v3.2.0+, scoped to authorized projects in v3.3.0+) to verify project token coverage. In `v3.3.0+`, unauthenticated `GET /projects` returns an empty array `[]` (or `401` when read-auth is active), and project-scoped tokens discover only their authorized projects. If `project_name` or `kanban_token` can't be determined, it halts and asks you instead of guessing.
 
 **No board yet?** If `kanban_url` is missing, the skill deploys one locally:
 
@@ -142,14 +142,17 @@ A Build → Review → Test cycle that repeats **3 times** halts and reports blo
 
 ## Project scoping (the #1 gotcha)
 
-Every path that addresses a specific task must carry `?project=<project_name>`: `/tasks/:id`, `/:id/claim`, `/:id/heartbeat`, `/:id/logs`, and `GET /tasks`. Only `POST /tasks` takes the project in the JSON body. `GET /projects` and `GET /api/health` need no scoping.
+Every path that addresses a specific task must carry `?project=<project_name>`: `/tasks/:id`, `/:id/claim`, `/:id/heartbeat`, `/:id/logs`, and `GET /tasks`. Only `POST /tasks` takes the project in the JSON body. `GET /api/health` needs no project query parameter.
 
-Without it, calls silently resolve against the `default` project.
+Without `?project=`, task calls silently resolve against the `default` project.
+
+**Project Discovery & Isolation (v3.3.0+)**: `GET /projects` requires authentication headers (`x-api-token`). On multi-tenant boards with `KANBAN_PROJECT_TOKENS`, callers only discover the projects mapped to their token (admin tokens see all). Unauthenticated requests return `[]` (or `401` when read-auth is active). Similarly, unscoped `GET /tasks` is automatically restricted to the caller's authorized projects.
 
 ## Troubleshooting
 
 - **`403 ... not authorized for project 'default'`** → missing `?project=` on a task path.
 - **`404` on `GET /tasks/:id`** → same cause, missing `?project=`.
+- **`GET /projects` returns `[]` or `401`** → missing or unauthorized `x-api-token` on v3.3.0+ boards. Provide the configured project token in `x-api-token` or `Authorization: Bearer`.
 - **`409 Invalid state transition from BACKLOG to <X>`** → the lease expired and the reaper reset the card. Re-claim and re-walk the stages. Check `git status` / `git log` on the task branch first: uncommitted work may still be on disk, but it was never committed.
 - **`409` on PATCH with a version mismatch** → someone else wrote first. Re-read the card and retry with the current `version`.
 - **`415 Unsupported Media Type` (`unsupported_encoding`)** → request used an unrecognized `Content-Encoding` header. Send uncompressed UTF-8 JSON.

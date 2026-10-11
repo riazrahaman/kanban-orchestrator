@@ -13,6 +13,20 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.3.0] — 2026-10-11
+
+Per-token project name isolation, mandatory authenticated discovery, and state machine transition integrity aligned with `agent-kanban-board` v3.3.0.
+
+### Added
+- **Per-Token Project Name Isolation (§1, §2)**: Documented tenant isolation protocol where `GET /projects` requires `x-api-token` / Bearer token authentication. In multi-tenant environments configured with `KANBAN_PROJECT_TOKENS`, callers only discover the projects explicitly assigned to their token (admin tokens retain global discovery). Unauthenticated probes receive an empty list `[]` (or `401 Unauthorized` if read authentication is enforced).
+- **Scoped Health Credential Maps (§1, §2)**: Documented that `GET /api/health` credential map `missing` and `extra` arrays isolate project names strictly to the authenticated caller's authorized project scope.
+- **Unscoped Task Scoping (§2)**: Documented that unscoped `GET /tasks` requests automatically scope to the caller's authorized projects rather than exposing tasks from all projects.
+- **Tester Transition Rule (§3)**: Clarified that on tester failure in `VALIDATION`, cards return to `IN_PROGRESS` (`VALIDATION → READY` is not a legal state transition).
+
+### Changed
+- **Reaper Recovery Workflow (§4)**: Clarified that expired or stalled cards reset to `READY` with ownership and lease cleared, requiring workers to re-claim the card back into `IN_PROGRESS` (or `PLANNING`) from `READY`.
+- **Board Compatibility**: Updated target recommendation to `agent-kanban-board` v3.3.0+.
+
 ## [3.2.2] — 2026-10-10
 
 Mobile full-bleed background, bottom clearance reclamation, zoom restriction, and header disclosure persistence.
