@@ -13,6 +13,20 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.7.1] — 2026-10-18
+
+Protocol synchronization with `agent-kanban-board` v3.7.1, Ask-the-Board (Ollama and OpenRouter) public endpoints, two-stage graceful teardown architecture, strict HTTP header ByteString standards, and documentation reconciliation.
+
+### Added
+- **Ask-the-Board Public Endpoints (§2, §4, §5)**: Documented `POST /api/ask` and `GET /api/ask/config` public Q&A interfaces over board protocol and repository source context. Gated via shared password header `x-ask-pass` (`KANBAN_ASK_PASSWORD`), NOT `x-api-token`. Added support for OpenRouter and local Ollama (`KANBAN_ASK_PROVIDER=ollama`, default `qwen3.6:latest` on `http://localhost:11434`), and tunnel authentication header forwarding (`KANBAN_ASK_OLLAMA_AUTH_HEADER`). Clarified that Ask is strictly a read-only human assistant and agents must not call it for board mutations or task tracking.
+- **Two-Stage Graceful Teardown (§1, §4)**: Documented board shutdown behavior where `drainSseStreams()` terminates active `/api/events` connections before listener sockets close. Documented running with `node server/server.js` (or root `npm start`) so POSIX `SIGTERM`/`SIGINT` signals propagate without wrapper process interference.
+- **HTTP Header ASCII ByteString Standard (§4)**: Documented strict ByteString requirement (`U+0000` to `U+00FF`) for all HTTP headers. Non-ASCII characters (such as em dashes `—` or unicode quotes) cause client `TypeError` exceptions before packets leave the process.
+- **SSE Stream Endpoint Scoping (§2)**: Added `GET /api/events` with optional `?project=` filter to the verified endpoint scoping table.
+
+### Changed
+- **Reaper Target Documentation Reconciled**: Reconciled all documentation in `README.md` and `SKILL.md` to consistently state that reaper resets, lease expirations, progress stalls, and orphan card normalizations return cards to `READY` (not `BACKLOG`), and tester failures in `VALIDATION` reset to `IN_PROGRESS` (never `READY`).
+- **Board Compatibility**: Updated recommended version to `agent-kanban-board` v3.7.1+ (minimum v3.0.0+).
+
 ## [3.3.0] — 2026-10-11
 
 Per-token project name isolation, mandatory authenticated discovery, and state machine transition integrity aligned with `agent-kanban-board` v3.3.0.
