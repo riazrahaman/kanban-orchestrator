@@ -13,6 +13,17 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.8.0] — 2026-10-19
+
+Credential-bound roles mandate, aligned with credential-bound authentication in `agent-kanban-board` v3.8.0 (feature branch `feat/credential-bound-roles`, not yet merged at skill-release time).
+
+### Added
+- **Credential-Bound Roles Mandate (§1, §3, §4)**: Per-role agent credentials are now **MANDATORY**: every agent role (planner, builder, reviewer, tester/validator, releaser) requires its own token bound to that role in `KANBAN_PROJECT_TOKENS`. The server derives the role from the credential; a self-declared `X-Agent-Role` header that conflicts with the credential's bound role is **ignored — the request is served with the credential's role — and the mismatch is audited** (`role_binding_mismatch`). Orchestrators use an explicit `admin` (or `runner`) credential, never a self-declared role header.
+- **Role-Keyed `KANBAN_PROJECT_TOKENS` Schema (§1)**: documents the `{ "token": ..., "role": ... }` bound-credential value shape and the `{ "credentials": [...] }` array form; legacy plain-string tokens keep current unbound behavior as an opt-in migration path. Privileged roles (`admin`/`runner`/`system`/`human`) are never bound to board credentials.
+- §3 updated: builder dispatch passes the builder's own role-bound token, the `READY` claim uses a builder-bound credential, and per-stage `Role:` PATCHes operate under credential-derived roles. §4 Identity & Roles and Headers rules updated accordingly.
+
+> **Board compatibility.** The mandate targets `agent-kanban-board` v3.8.0. Boards running v3.7.3 or earlier continue to honor self-declared `X-Agent-Role` headers; role binding activates when the board upgrade ships.
+
 ## [3.7.1] — 2026-10-18
 
 Protocol synchronization with `agent-kanban-board` v3.7.1, Ask-the-Board (Ollama and OpenRouter) public endpoints, two-stage graceful teardown architecture, strict HTTP header ByteString standards, and documentation reconciliation.
