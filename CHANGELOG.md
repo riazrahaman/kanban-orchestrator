@@ -13,6 +13,18 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.9.0] — 2026-10-20
+
+One-agent-per-role mandate, aligned with the `role_crossing` audit signal in `agent-kanban-board` v3.9.0 (ADR-006).
+
+### Added
+
+- **One Agent per Role (MANDATORY, v3.9.0+):** dispatch each stage to a distinct `x-agent-id` **and** its own role-bound credential — never swap one agent's credential across stages to cover a card yourself. The board's opt-in `role_crossing` audit signal (`KANBAN_ROLE_CROSSING_AUDIT`, off by default) reports when one `x-agent-id` presents bound credentials for several roles on a project; a crossing is a review prompt, never a rejection — but the correct posture is to never need it.
+
+### Notes
+
+- Board compatibility: `agent-kanban-board` v3.9.0. The signal is **off by default** — a board that has not set `KANBAN_ROLE_CROSSING_AUDIT` emits nothing, and the skill's behavior is unchanged. On a board with the signal enabled, the audit log will show `role_crossing` entries when one agent id uses several role-bound credentials.
+
 ## [3.8.0] — 2026-10-19
 
 Credential-bound roles mandate, aligned with credential-bound authentication in `agent-kanban-board` v3.8.0 (feature branch `feat/credential-bound-roles`, not yet merged at skill-release time).
