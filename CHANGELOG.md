@@ -13,6 +13,35 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.9.1] — 2026-10-20
+
+README storefront refresh, matching the treatment on the board repo.
+
+### Changed
+
+- **README storefront.** Centered hero with a one-line tagline, a live badge row
+  (release, license, skill version, board version, SkillPort), an anchor navigation
+  row, a full-width hero image of the board this skill drives, and a `[!TIP]`
+  onboarding callout that points a first-time reader straight at Install and
+  Configure.
+- **New "What the protocol gives you" table** stating the six guarantees the
+  protocol provides — no self-approval, no lost work, no silent overwrites, no
+  stage skipping, no evidence-free progress, one agent per stage — and the
+  mechanism that enforces each.
+- **Cleaner 8-state overview.** The lifecycle now leads with a one-line
+  `BACKLOG → READY → PLANNING → IN_PROGRESS → IN_REVIEW → VALIDATION →
+  READY_TO_SHIP → DONE` strip before the full dispatch flow.
+- **Corrected one stale sentence.** The credential-bound roles paragraph said a
+  conflicting `X-Agent-Role` header is "rejected"; the shipped behavior is that
+  the header is **ignored** — the request is served with the credential's role —
+  and the mismatch is audited (`role_binding_mismatch`). The wording now matches
+  `SKILL.md` and the board's implementation.
+
+### Notes
+
+- Documentation-only change. The skill version in `SKILL.md` is unchanged at
+  `3.9.0`; no protocol, header, or endpoint behavior changed.
+
 ## [3.9.0] — 2026-10-20
 
 One-agent-per-role mandate, aligned with the `role_crossing` audit signal in `agent-kanban-board` v3.9.0 (ADR-006).

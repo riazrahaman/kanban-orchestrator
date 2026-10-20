@@ -1,16 +1,58 @@
-# kanban-orchestrator
+<div align="center">
 
-**Agents Kanban** — a strict, Kanban-first orchestrator skill for coding agents.
+# 🎯 kanban-orchestrator
+
+**A strict, Kanban-first orchestrator skill that turns any coding agent into the admin of a delegated build.**
+
+The agent stops writing code itself. It owns the board, holds the lease on every card,
+dispatches builder / reviewer / tester workers, and moves a card forward only when
+there is evidence — command output, test results, commit hashes.
+
+[![Release](https://img.shields.io/github/v/release/riazrahaman/kanban-orchestrator?label=release)](https://github.com/riazrahaman/kanban-orchestrator/releases/latest)
+[![License](https://img.shields.io/github/license/riazrahaman/kanban-orchestrator?color=blue)](LICENSE)
+[![Skill](https://img.shields.io/badge/skill-v3.9.0-5b8ff6)](SKILL.md)
+[![Board](https://img.shields.io/badge/board-v3.9.0%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
+[![SkillPort](https://img.shields.io/badge/skillport-verified-7c3aed)](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+
+[How it works](#how-it-works-agentos-8-state-workflow) ·
+[When to use it](#when-to-use-it) ·
+[What you get](#what-the-protocol-gives-you) ·
+[Requirements](#requirements) ·
+[Install](#install) ·
+[Configure](#configure) ·
+[The lifecycle](#the-lifecycle) ·
+[Rules](#rules-the-orchestrator-follows) ·
+[Project scoping](#project-scoping-the-1-gotcha) ·
+[Troubleshooting](#troubleshooting) ·
+[SKILL.md](SKILL.md)
+
+<img src="https://raw.githubusercontent.com/riazrahaman/agent-kanban-board/v3.9.0/client/public/landing/board.png" alt="Agent Kanban Board — the live board this skill drives" width="100%">
+
+**One card, one stage, one role.** The board enforces roles server-side, so an agent
+cannot declare progress it hasn't earned — every stage is dispatched to a distinct
+agent identity holding its own role-bound credential.
+
+<sub>The board is open source and runs locally — <a href="https://github.com/riazrahaman/agent-kanban-board">agent-kanban-board</a>.</sub>
+
+</div>
+
+> [!TIP]
+> **New here?** Jump to [Install](#install) (`npx @skillporthq/cli@latest add riazrahaman/agentkanban`),
+> then [Configure](#configure) for the three mandatory fields. The full protocol — every
+> header, every `?project=`, every role boundary — lives in [`SKILL.md`](SKILL.md); this
+> README is the human-facing overview.
 
 Version `v3.9.0` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
-The skill turns your coding agent into the **admin of a delegated build**. It stops writing code itself. Instead it owns the board, holds the lease on each card, dispatches builder / reviewer / tester workers, and only moves a card forward when there is evidence: command output, test results, commit hashes.
-
-The board is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side, so an agent cannot declare progress it hasn't earned.
-
-The full protocol lives in [`SKILL.md`](SKILL.md). This README is the human-facing overview.
+The board this skill drives is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side.
 
 ## How it works (AgentOS 8-State Workflow)
+
+Eight states, role-gated, version-checked. The orchestrator claims a card, dispatches the worker that owns the current stage, and refuses to advance a stage on nothing but a claim.
+
+```
+BACKLOG ──► READY ──► PLANNING ──► IN_PROGRESS ──► IN_REVIEW ──► VALIDATION ──► READY_TO_SHIP ──► DONE
+```
 
 ```
                  [GitHub issue #N] ── linked ──┐
@@ -46,6 +88,17 @@ The full protocol lives in [`SKILL.md`](SKILL.md). This README is the human-faci
 - You want crash-safe delegation: if a worker dies mid-build or stalls, the card returns to the queue instead of rotting in active work.
 
 It is not a code generator and it does not replace your CI. It is a protocol that makes an agent behave like a disciplined tech lead.
+
+## What the protocol gives you
+
+| Guarantee | How it is enforced |
+|---|---|
+| **No self-approval** | Roles are bound to credentials (`KANBAN_PROJECT_TOKENS`), not self-declared headers. A builder credential cannot move a card to `VALIDATION`. |
+| **No lost work** | Every card carries a lease. Heartbeats refresh it; an expired lease returns the card to `READY` with the owner cleared, so it never rots in an active stage. |
+| **No silent overwrites** | Every write carries `expected_version`; a stale write gets `409 Version mismatch` instead of clobbering a concurrent write. |
+| **No stage skipping** | The 8-state graph is validated server-side. Illegal moves are rejected, and each role may only perform the transitions it owns. |
+| **No evidence-free progress** | The orchestrator requires command output, test results or a commit hash before advancing a card. |
+| **One agent per stage** | Each stage is dispatched to a distinct `x-agent-id` with its own role-bound credential. The board's opt-in `role_crossing` signal surfaces any agent that crosses roles. |
 
 ## Requirements
 
@@ -93,7 +146,7 @@ Three fields are mandatory: `kanban_url`, `kanban_token`, `project_name`. The sk
 
 `.opencode/` holds tokens. Add it to `.gitignore` before writing the file, and never stage it.
 
-**Credential-bound roles (MANDATORY as of skill v3.8.0):** every agent role (planner, builder, reviewer, tester/validator, releaser) requires its own token bound to that role in `KANBAN_PROJECT_TOKENS`; the orchestrator uses an explicit `admin` (or `runner`) credential. Roles are forced by the credential — a self-declared `X-Agent-Role` header that conflicts with the credential's bound role is rejected/audited (`role_binding_mismatch`). Legacy plain-string tokens keep current unbound behavior; migration is opt-in:
+**Credential-bound roles (MANDATORY as of skill v3.8.0):** every agent role (planner, builder, reviewer, tester/validator, releaser) requires its own token bound to that role in `KANBAN_PROJECT_TOKENS`; the orchestrator uses an explicit `admin` (or `runner`) credential. Roles are forced by the credential — a self-declared `X-Agent-Role` header that conflicts with the credential's bound role is ignored (the request is served with the credential's role) and the mismatch is audited (`role_binding_mismatch`). Legacy plain-string tokens keep current unbound behavior; migration is opt-in:
 
 ```json
 {
