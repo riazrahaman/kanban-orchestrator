@@ -39,8 +39,9 @@ README storefront refresh, matching the treatment on the board repo.
 
 ### Notes
 
-- Documentation-only change. The skill version in `SKILL.md` is unchanged at
-  `3.9.0`; no protocol, header, or endpoint behavior changed.
+- Documentation-only change. The skill version in `SKILL.md` is bumped to
+  `3.9.1` to match this release; no protocol, header, or endpoint behavior
+  changed relative to `3.9.0`.
 
 ## [3.9.0] — 2026-10-20
 
@@ -48,7 +49,7 @@ One-agent-per-role mandate, aligned with the `role_crossing` audit signal in `ag
 
 ### Added
 
-- **One Agent per Role (MANDATORY, v3.9.0+):** dispatch each stage to a distinct `x-agent-id` **and** its own role-bound credential — never swap one agent's credential across stages to cover a card yourself. The board's opt-in `role_crossing` audit signal (`KANBAN_ROLE_CROSSING_AUDIT`, off by default) reports when one `x-agent-id` presents bound credentials for several roles on a project; a crossing is a review prompt, never a rejection — but the correct posture is to never need it.
+- **One agent per role (MANDATORY, v3.9.0+):** dispatch each stage to a distinct `x-agent-id` **and** its own role-bound credential — never swap one agent's credential across stages to cover a card yourself. The board's opt-in `role_crossing` audit signal (`KANBAN_ROLE_CROSSING_AUDIT`, off by default) reports one agent id presenting several bound roles; it never rejects, but the correct posture is to never trigger it.
 
 ### Notes
 
