@@ -10,8 +10,8 @@ there is evidence — command output, test results, commit hashes.
 
 [![Release](https://img.shields.io/github/v/release/riazrahaman/kanban-orchestrator?label=release)](https://github.com/riazrahaman/kanban-orchestrator/releases/latest)
 [![License](https://img.shields.io/github/license/riazrahaman/kanban-orchestrator?color=blue)](LICENSE)
-[![Skill](https://img.shields.io/badge/skill-v3.9.1-5b8ff6)](SKILL.md)
-[![Board](https://img.shields.io/badge/board-v3.9.0%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
+[![Skill](https://img.shields.io/badge/skill-v3.9.6-5b8ff6)](SKILL.md)
+[![Board](https://img.shields.io/badge/board-v3.9.5%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
 [![SkillPort](https://img.shields.io/badge/skillport-verified-7c3aed)](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 [How it works](#how-it-works-agentos-8-state-workflow) ·
@@ -26,7 +26,7 @@ there is evidence — command output, test results, commit hashes.
 [Troubleshooting](#troubleshooting) ·
 [SKILL.md](SKILL.md)
 
-<img src="https://raw.githubusercontent.com/riazrahaman/agent-kanban-board/v3.9.0/client/public/landing/board.png" alt="Agent Kanban Board — the live board this skill drives" width="100%">
+<img src="https://raw.githubusercontent.com/riazrahaman/agent-kanban-board/v3.9.6/client/public/landing/board.png" alt="Agent Kanban Board — the live board this skill drives" width="100%">
 
 **One card, one stage, one role.** The board enforces roles server-side, so an agent
 cannot declare progress it hasn't earned — every stage is dispatched to a distinct
@@ -42,7 +42,7 @@ agent identity holding its own role-bound credential.
 > header, every `?project=`, every role boundary — lives in [`SKILL.md`](SKILL.md); this
 > README is the human-facing overview.
 
-Version `v3.9.1` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v3.9.6` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The board this skill drives is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side.
 
@@ -103,7 +103,7 @@ It is not a code generator and it does not replace your CI. It is a protocol tha
 ## Requirements
 
 - An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
-- A running agent-kanban-board v3.0.0 or later (v3.7.1+ recommended for Ollama/OpenRouter Ask-the-Board, graceful shutdown SSE draining, per-token project isolation, and strict header ByteString enforcement); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
+- A running agent-kanban-board v3.0.0 or later (v3.9.5+ recommended for deploy-drift visibility, Ollama/OpenRouter Ask-the-Board, graceful shutdown SSE draining, per-token project isolation, and strict header ByteString enforcement); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
 - `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
 ## Install

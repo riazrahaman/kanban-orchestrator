@@ -13,6 +13,47 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.9.6] — 2026-10-24
+
+Deploy-drift awareness in the connection check, aligned with `agent-kanban-board`
+v3.9.5. Ported from the board repo's bundled skill copy.
+
+### Added
+
+- **Deploy-drift check in the connection verification step.** On board v3.9.5+,
+  `GET /api/health` also returns
+  `deploy_drift: {status, running, latest_tag, checked_at, drift_since}` — the
+  running build compared with the newest GitHub release. `SKILL.md` now tells the
+  orchestrator how to read it:
+  - `drift` means the release on GitHub is **not** the build that is live. Treat
+    it as **a skipped deploy, not a failure**: a host configured to require green
+    CI skips the push-triggered deployment, and the previous build keeps serving a
+    healthy board. Let the operator redeploy; **do not retry writes or re-file work**
+    because of drift — the board's data and API are healthy.
+  - `unknown` means the check itself failed (GitHub unreachable, bad payload, or
+    the monitor is disabled/just booted). It is **not** a board outage — `/api/health`
+    answered, so the process is up. Report it, do not halt.
+  - `in_sync` needs no action. A mismatch is only reported after a grace window
+    (default 45 min), so a release that has just been tagged and not yet redeployed
+    is normal, not drift.
+
+### Changed
+
+- **Endpoint table.** The `GET /api/health` row now documents the `deploy_drift`
+  verdict (v3.9.5+) alongside the version and credential-map probes.
+- **README.** Skill badge and version line bump to `v3.9.6`; the board badge and
+  hero image move to `v3.9.5+`/`v3.9.6`, and the Requirements note recommends
+  board v3.9.5+ for deploy-drift visibility.
+
+### Notes
+
+- **Version alignment.** The skill repo skipped `3.9.2`–`3.9.5` because those
+  releases changed the board only. The board's bundled skill copy went
+  `3.9.1` → `3.9.5` (deploy-drift section) → `3.9.6` (version line only), so this
+  release republishes the skill at `3.9.6` to keep the two copies identical apart
+  from the skill name and install line.
+
+
 ## [3.9.1] — 2026-10-20
 
 README storefront refresh, matching the treatment on the board repo.
