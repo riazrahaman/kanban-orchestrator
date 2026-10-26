@@ -13,6 +13,34 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.9.7] — 2026-10-26
+
+Clarifies who performs the deploy-drift check and how to read `unknown`.
+
+### Changed
+
+- **Deploy-drift section now states the division of labour.** The `deploy_drift`
+  payload is produced by the **board**: its server polls the newest GitHub
+  release and compares it with the build it is running, then publishes the
+  verdict on `GET /api/health`. The orchestrator only reads the field — it must
+  not query GitHub itself, and needs no token, repository name, or API version.
+- **`unknown` is split into two distinct cases via `checked_at`.** `checked_at:
+  null` means **no check has ever run** — the monitor is disabled
+  (`KANBAN_DEPLOY_DRIFT_INTERVAL_MS <= 0`, a supported configuration) or the
+  process has just booted — so there is nothing to fix and nothing to report.
+  A non-null `checked_at` means a check **ran and failed** (GitHub unreachable,
+  bad payload). Neither is a board outage.
+
+### Notes
+
+- Documentation-only change. No protocol, header, or endpoint behavior changed
+  relative to `3.9.6`; the board-compatible surface is unchanged (board
+  v3.0.0+, `deploy_drift` present on v3.9.5+).
+- **Board 3.10.0 needs no port.** The bundled copy in `agent-kanban-board`
+  v3.10.0 (`release: v3.10.0 — deep-review hardening`) changed **only** its
+  `version:` line — its skill content is identical to `3.9.6`. Nothing from that
+  release affects this skill.
+
 ## [3.9.6] — 2026-10-24
 
 Deploy-drift awareness in the connection check, aligned with `agent-kanban-board`

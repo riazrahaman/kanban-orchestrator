@@ -1,7 +1,7 @@
 ---
 name: kanban-orchestrator
 description: "Strict Kanban-first orchestrator for delegated builds, tasks, and feature workflows using agent-kanban-board. Use when managing tasks on a kanban board, orchestrating builder, reviewer, and tester agent workflows, or deploying the local agent-kanban-board server."
-version: 3.9.6
+version: 3.9.7
 ---
 
 # Kanban Orchestrator Protocol
@@ -77,9 +77,9 @@ If `kanban_url` is not provided in `.opencode/config.json` or environment variab
    - Check if `credential_map.status` is `"undercovered"` or `"malformed"`.
    - When authenticated, check if your configured `project_name` is listed in `credential_map.missing` (`missing?.includes(project_name)`). Unauthenticated probes alert on `credential_map.missing_count > 0`.
    - If your project is missing or the credential map is undercovered, **warn or halt immediately**: the board has stored tasks for the project but lacks an active token entry in `KANBAN_PROJECT_TOKENS`. Future task mutations will fail with `403 Forbidden: token is not authorized for project '<project_name>'`. Alert the operator to restore the missing token in the server's environment configuration (e.g. Railway / Render).
-3. **Deploy-Drift Check (v3.9.5+)**: `GET /api/health` also carries `deploy_drift: {status, running, latest_tag, checked_at, drift_since}` — the running version compared with the newest GitHub release.
+3. **Deploy-Drift Check (v3.9.5+)**: `GET /api/health` also carries `deploy_drift: {status, running, latest_tag, checked_at, drift_since}`. The **board** performs this comparison — it polls the newest GitHub release and compares it with the build it is running — and publishes the verdict here. **Read the field; never query GitHub yourself**: no token, repository name, or API version is needed.
    - `status: "drift"` means the release on GitHub is **not** the build that is live. Treat it as **the deploy was SKIPPED, not failed**: a hosted service set to require a green CI skips a push-triggered deployment when CI is red, and the previous build keeps serving a healthy board. Check the CI run for the release commit and let the operator redeploy. **Do not retry writes or re-file work because of drift** — the board's data and API are healthy; a write that failed failed for its own reason.
-   - `status: "unknown"` means the check itself failed (GitHub unreachable, bad payload, or the monitor is disabled/just booted). It is **not** a board outage — `/api/health` answered, so the process is up. Report it, do not halt.
+   - `status: "unknown"` means the board could not produce a verdict. Check `checked_at` first: **`null` means no check has ever run** — the monitor is disabled (`KANBAN_DEPLOY_DRIFT_INTERVAL_MS <= 0`, a supported configuration) or the process has just booted — so there is nothing to fix and nothing to report. A non-null `checked_at` means a check **ran and failed** (GitHub unreachable, bad payload). Either way it is **not** a board outage — `/api/health` answered, so the process is up. Report it, do not halt.
    - `status: "in_sync"` needs no action. A mismatch is only reported after a grace window (default 45 min), so a release that has just been tagged and not yet redeployed is normal, not drift.
 
 **Security**: Never commit configuration files. `.opencode/` holds authentication tokens. Confirm it is added to `.gitignore` before writing, and never stage `.opencode/` in git commits.
