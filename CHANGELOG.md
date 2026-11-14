@@ -13,6 +13,43 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.16.1] — 2026-11-14
+
+Catches the skill up with agent-kanban-board v3.10 to v3.16.1. `SKILL.md` is
+synced from the board repository's `skills/kanban/SKILL.md`, which is the source
+of truth; only the `name:` and install line differ here. Board compatibility:
+v3.0.0+ still works, v3.16.0+ recommended.
+
+### Added
+
+- **Credential-bound identity (mandatory, board v3.12.8+).** Credentials can bind
+  `agent_id`; the server derives the acting agent from the credential and audits a
+  conflicting `X-Agent-Id` or body `agent_id` as `identity_binding_mismatch`.
+- **Never walk a card with the admin token.** Every normal stage transition
+  (claim, `IN_REVIEW`, `VALIDATION`, `READY_TO_SHIP`, `DONE`) uses that stage's own
+  role-bound credential; `admin` is for lifecycle repair only. The builder now
+  claims with its own credential.
+- **Severity dot** definition (green, amber, red, hollow) for how many distinct
+  agents covered a card's stages.
+- **Every release ships a tag and a GitHub Release** (`gh release create`), since
+  the deploy-drift monitor reads `releases/latest` first.
+- Behaviour-change notes for board v3.13.0 (same-project dependencies, assign
+  needs `agent_id`), v3.14.0 (destructive operations need the admin credential in
+  every auth mode; challenge-based sessions) and v3.16.0 (requests whose project
+  channels disagree are rejected with `400`; opt-in
+  `KANBAN_REQUIRE_BOUND_CREDENTIALS=1`).
+
+### Changed
+
+- **Deploy-drift reading (board v3.12.7+).** The comparison is semver: `drift`
+  means the live build is behind the newest release; a build ahead of it is
+  `in_sync`. The payload adds `reason` and `source` (`release` or `tags`).
+- **Rate limiting.** Failed-authentication throttling is on by default since board
+  v3.13.0 (60 per window; `0` disables).
+- `GET /api/ask/config` returns only `{enabled, gated}` without a valid
+  `x-ask-pass`.
+- README: version badges, recommended board version and the rules list updated.
+
 ## [3.9.7] — 2026-10-26
 
 Clarifies who performs the deploy-drift check and how to read `unknown`.

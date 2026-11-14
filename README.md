@@ -10,8 +10,8 @@ there is evidence — command output, test results, commit hashes.
 
 [![Release](https://img.shields.io/github/v/release/riazrahaman/kanban-orchestrator?label=release)](https://github.com/riazrahaman/kanban-orchestrator/releases/latest)
 [![License](https://img.shields.io/github/license/riazrahaman/kanban-orchestrator?color=blue)](LICENSE)
-[![Skill](https://img.shields.io/badge/skill-v3.9.7-5b8ff6)](SKILL.md)
-[![Board](https://img.shields.io/badge/board-v3.9.5%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
+[![Skill](https://img.shields.io/badge/skill-v3.16.1-5b8ff6)](SKILL.md)
+[![Board](https://img.shields.io/badge/board-v3.16.0%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
 [![SkillPort](https://img.shields.io/badge/skillport-verified-7c3aed)](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 [How it works](#how-it-works-agentos-8-state-workflow) ·
@@ -26,7 +26,7 @@ there is evidence — command output, test results, commit hashes.
 [Troubleshooting](#troubleshooting) ·
 [SKILL.md](SKILL.md)
 
-<img src="https://raw.githubusercontent.com/riazrahaman/agent-kanban-board/v3.9.6/client/public/landing/board.png" alt="Agent Kanban Board — the live board this skill drives" width="100%">
+<img src="https://raw.githubusercontent.com/riazrahaman/agent-kanban-board/v3.16.1/client/public/landing/board.png" alt="Agent Kanban Board — the live board this skill drives" width="100%">
 
 **One card, one stage, one role.** The board enforces roles server-side, so an agent
 cannot declare progress it hasn't earned — every stage is dispatched to a distinct
@@ -42,7 +42,7 @@ agent identity holding its own role-bound credential.
 > header, every `?project=`, every role boundary — lives in [`SKILL.md`](SKILL.md); this
 > README is the human-facing overview.
 
-Version `v3.9.7` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v3.16.1` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The board this skill drives is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side.
 
@@ -103,7 +103,7 @@ It is not a code generator and it does not replace your CI. It is a protocol tha
 ## Requirements
 
 - An agent runtime that loads `SKILL.md` skills. Primary target: [opencode](https://opencode.ai).
-- A running agent-kanban-board v3.0.0 or later (v3.9.5+ recommended for deploy-drift visibility, Ollama/OpenRouter Ask-the-Board, graceful shutdown SSE draining, per-token project isolation, and strict header ByteString enforcement); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
+- A running agent-kanban-board v3.0.0 or later (v3.16.0+ recommended; v3.9.5+ for deploy-drift visibility, Ollama/OpenRouter Ask-the-Board, graceful shutdown SSE draining, per-token project isolation, and strict header ByteString enforcement); v3 also accepts legacy v2 statuses. No board yet? The skill can deploy one locally (Node.js + npm).
 - `git` and the GitHub CLI (`gh`) for the issue, branch, merge and tag steps.
 
 ## Install
@@ -202,6 +202,9 @@ A Build → Review → Test cycle that repeats **3 times** halts and reports blo
 
 - **Roles:** orchestrator = `admin`; workers = `planner`, `builder`, `reviewer`, `tester`/`validator`, `releaser`.
 - **Credential-bound roles (MANDATORY, v3.8.0+):** each role above needs its own token bound to that role in `KANBAN_PROJECT_TOKENS`; the server forces the role from the credential, so headers alone no longer grant a role on bound credentials.
+- **Credential-bound identity (MANDATORY, v3.12.8+):** bind `agent_id` on each worker's credential too, so the acting agent is derived server-side; a conflicting `x-agent-id` or body `agent_id` is ignored and audited as `identity_binding_mismatch`. A board started with `KANBAN_REQUIRE_BOUND_CREDENTIALS=1` (v3.16.0+) refuses writes from credentials with no bound `agent_id`.
+- **Never walk a card with the admin token:** the orchestrator's `admin`/`runner` credential is for lifecycle repair only (resetting a reaped card, unblocking, correcting a bad status). Every normal stage transition uses that stage's own role-bound credential.
+- **One project per request (v3.16.0+):** send the same project in every channel you use (`?project=`, `X-Kanban-Project`, body `project`, composite `project:id`); channels that disagree are rejected with `400`.
 - **Headers on every request:** `x-agent-id`, `x-agent-role`, `x-api-token`. On a role-bound credential the server derives the role from the credential; a conflicting `x-agent-role` is ignored and audited (`role_binding_mismatch`). The header remains the role source only for legacy unbound tokens.
 - **Claim to own, PATCH to move.** Enter active stages by claiming from `READY`. A status-only PATCH into an active stage without claim produces an ownerless card, which the reaper resets to `READY`.
 - **Optimistic locking:** every PATCH sends the fresh current `expected_version` (re-read before each PATCH; intermediate claims, logs, and heartbeats increment card version). Distinguish `409 Version mismatch` (retry with fresh version) from `409 Invalid state transition` (reaper reset after lease loss; re-claim). Stale writes get `409`.

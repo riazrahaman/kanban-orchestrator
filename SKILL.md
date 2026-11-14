@@ -1,7 +1,7 @@
 ---
 name: kanban-orchestrator
 description: "Strict Kanban-first orchestrator for delegated builds, tasks, and feature workflows using agent-kanban-board. Use when managing tasks on a kanban board, orchestrating builder, reviewer, and tester agent workflows, or deploying the local agent-kanban-board server."
-version: 3.9.7
+version: 3.16.1
 ---
 
 # Kanban Orchestrator Protocol
@@ -21,20 +21,24 @@ Check for these fields in the following order:
 1. `.opencode/config.json` (Expected: `kanban_url`, `kanban_token`, `project_name`, `admin_token`)
 2. Environment Variables: `KANBAN_URL`, `KANBAN_TOKEN`, `KANBAN_PROJECT`, `KANBAN_ADMIN_TOKEN`
 
+### Credential-Bound Identity (MANDATORY as of skill v3.12.8)
+
+> v3.12.8 (A7) closes the **identity** half of the same gap v3.8.0 closed for roles. A credential may bind `agent_id`; the server then derives the acting agent from the credential, and a conflicting `X-Agent-Id` header (or body `agent_id`) is ignored and audited (`identity_binding_mismatch`). On an unbound credential the header remains the identity source, but a **body `agent_id` alone is no longer identity for a non-privileged caller** — send `X-Agent-Id`. The admin token and an UNBOUND privileged session may still assert via header or body (`agentSource: admin_token | session`); a session minted from an identity-bound credential keeps it, even when privileged. `agent_id` must be 1-64 chars from `[A-Za-z0-9._@:/-]`; one token bound to different agent ids across projects is rejected, because identity must not change with scope. Sessions minted from a bound credential carry the bound identity too.
+
 ### Credential-Bound Roles (MANDATORY as of skill v3.8.0)
 
 > Every agent role (planner, builder, reviewer, tester/validator, releaser) requires its own token bound to that role in `KANBAN_PROJECT_TOKENS`. Roles are forced by the credential; a self-declared `X-Agent-Role` header that conflicts with the credential's bound role is ignored — the request is served with the credential's role — and the mismatch is audited (`role_binding_mismatch`). Orchestrators use an explicit `admin` (or `runner`) credential.
 
-Role-keyed `KANBAN_PROJECT_TOKENS` schema (the legacy plain-string value shape is still accepted and stays unbound):
+Role- and identity-keyed `KANBAN_PROJECT_TOKENS` schema (the legacy plain-string value shape is still accepted and stays unbound):
 
 ```json
 {
   "<project_name>": {
     "credentials": [
       { "token": "tok-planner", "role": "planner" },
-      { "token": "tok-build",   "role": "builder" },
-      { "token": "tok-review", "role": "reviewer" },
-      { "token": "tok-test",   "role": "tester" },
+      { "token": "tok-build",   "role": "builder", "agent_id": "agent-7" },
+      { "token": "tok-review",  "role": "reviewer" },
+      { "token": "tok-test",    "role": "tester" },
       { "token": "tok-release", "role": "releaser" }
     ]
   }
@@ -42,7 +46,8 @@ Role-keyed `KANBAN_PROJECT_TOKENS` schema (the legacy plain-string value shape i
 ```
 
 - `{ "token": "<tok>", "role": "<role>" }` — **role-bound credential**: the server derives the caller's role from the credential on every request. A conflicting header role is ignored and audited as `role_binding_mismatch`.
-- `{ "token": "<tok>" }` or legacy `"tok"` string — **unbound credential**: header-declared roles still apply (backward compatible; migration is opt-in per deployment). Legacy tokens keep current behavior, but per-role credential creation is the mandated configuration from v3.8.0 onward.
+- `{ "token": "<tok>", "agent_id": "<agent>" }` — **identity-bound credential** (v3.12.8): the server derives the acting agent id from the credential. A conflicting `X-Agent-Id`/body `agent_id` is ignored and audited as `identity_binding_mismatch`. Combine with `role` to bind both.
+- `{ "token": "<tok>" }` or legacy `"tok"` string — **unbound credential**: header-declared role/identity still apply (backward compatible; migration is opt-in per deployment). The identity channel is `X-Agent-Id`; a body `agent_id` alone is not identity for a non-privileged caller.
 - Privileged roles (`admin`, `runner`, `system`, `human`) are never bound to board credentials; the orchestrator's admin authority comes from the explicit `admin_token` / `KANBAN_ADMIN_TOKEN` credential (or a server-issued session).
 
 ### Automatic Local Deployment
@@ -77,10 +82,12 @@ If `kanban_url` is not provided in `.opencode/config.json` or environment variab
    - Check if `credential_map.status` is `"undercovered"` or `"malformed"`.
    - When authenticated, check if your configured `project_name` is listed in `credential_map.missing` (`missing?.includes(project_name)`). Unauthenticated probes alert on `credential_map.missing_count > 0`.
    - If your project is missing or the credential map is undercovered, **warn or halt immediately**: the board has stored tasks for the project but lacks an active token entry in `KANBAN_PROJECT_TOKENS`. Future task mutations will fail with `403 Forbidden: token is not authorized for project '<project_name>'`. Alert the operator to restore the missing token in the server's environment configuration (e.g. Railway / Render).
-3. **Deploy-Drift Check (v3.9.5+)**: `GET /api/health` also carries `deploy_drift: {status, running, latest_tag, checked_at, drift_since}`. The **board** performs this comparison — it polls the newest GitHub release and compares it with the build it is running — and publishes the verdict here. **Read the field; never query GitHub yourself**: no token, repository name, or API version is needed.
-   - `status: "drift"` means the release on GitHub is **not** the build that is live. Treat it as **the deploy was SKIPPED, not failed**: a hosted service set to require a green CI skips a push-triggered deployment when CI is red, and the previous build keeps serving a healthy board. Check the CI run for the release commit and let the operator redeploy. **Do not retry writes or re-file work because of drift** — the board's data and API are healthy; a write that failed failed for its own reason.
-   - `status: "unknown"` means the board could not produce a verdict. Check `checked_at` first: **`null` means no check has ever run** — the monitor is disabled (`KANBAN_DEPLOY_DRIFT_INTERVAL_MS <= 0`, a supported configuration) or the process has just booted — so there is nothing to fix and nothing to report. A non-null `checked_at` means a check **ran and failed** (GitHub unreachable, bad payload). Either way it is **not** a board outage — `/api/health` answered, so the process is up. Report it, do not halt.
-   - `status: "in_sync"` needs no action. A mismatch is only reported after a grace window (default 45 min), so a release that has just been tagged and not yet redeployed is normal, not drift.
+3. **Deploy-Drift Check (v3.9.5+, semver since v3.12.7)**: `GET /api/health` also carries `deploy_drift: {status, reason, running, latest_tag, source, checked_at, drift_since}` — the running version compared with the newest published version using **semver**, not string equality.
+   - `status: "drift"` means the live build is **BEHIND** the newest release (`running < latest`). Treat it as **the deploy was SKIPPED, not failed**: a hosted service set to require a green CI skips a push-triggered deployment when CI is red, and the previous build keeps serving a healthy board. Check the CI run for the release commit and let the operator redeploy. **Do not retry writes or re-file work because of drift** — the board's data and API are healthy; a write that failed failed for its own reason.
+   - `status: "in_sync"` covers a match, a mismatch still inside the grace window, **and a build that is AHEAD of the newest release**. Running ahead is not drift: the release simply has not been published yet, nothing is missing from the live build, and no deploy was skipped. `reason` says which (`match`, `behind_within_grace`, `running_ahead`).
+   - `status: "unknown"` means the check itself failed (GitHub unreachable, bad payload, or the monitor is disabled/just booted); `reason` is `check_failed`, `not_checked` or `unparseable_*`. It is **not** a board outage — `/api/health` answered, so the process is up. Report it, do not halt.
+   - `source: "release" | "tags"` records which feed produced `latest_tag`. The monitor reads `releases/latest` first and falls back to the repository's tag list when the release is missing or older than the highest semver tag (this repo published tags without GitHub Releases for a while). A tags-sourced verdict is as authoritative as a release-sourced one.
+   - A mismatch is only reported after a grace window (default 45 min), so a release that has just been tagged and not yet redeployed is normal, not drift.
 
 **Security**: Never commit configuration files. `.opencode/` holds authentication tokens. Confirm it is added to `.gitignore` before writing, and never stage `.opencode/` in git commits.
 
@@ -102,11 +109,11 @@ Verified endpoint scoping behavior:
 | `GET /tasks/:id` (no `?project=`) | None | Fails with `404 Not Found` |
 | `GET /tasks?project=X` | Query parameter: `?project=X` | Lists tasks within project |
 | `GET /projects` | Header `x-api-token` mandatory | Returns authorized project summaries (anonymous returns []) |
-| `GET /api/health` | No scoping needed | Server health, version probe (`version`), credential-map status (`credential_map` v3.1.0+, project name privacy v3.2.0+, project scope isolation v3.3.0+), and deploy-drift verdict (`deploy_drift` v3.9.5+) |
+| `GET /api/health` | No scoping needed | Server health, version probe (`version`), credential-map status (`credential_map` v3.1.0+, project name privacy v3.2.0+, project scope isolation v3.3.0+), and deploy-drift verdict (`deploy_drift` v3.9.5+, semver + `source` field v3.12.7+) |
 | `GET /api/events` | Optional: `?project=X` | EventSource SSE real-time event stream (diffs or snapshots) |
 | `POST /api/bug-reports` | No scoping needed | Public human bug reporting to GitHub (takes no token, creates no card) |
 | `POST /api/ask` | No scoping needed | Password-gated Q&A (`x-ask-pass` mandatory; read-only assistant, takes no board token) |
-| `GET /api/ask/config` | No scoping needed | Reports Ask feature status (`enabled`, `gated`, `model`, `provider`) |
+| `GET /api/ask/config` | No scoping needed | Reports Ask feature status: {enabled, gated} to everyone; provider, model and scope only with a valid x-ask-pass (a wrong password counts toward the Ask lockout) |
 
 **Rule**: Append `?project=<project_name>` to every path addressing a specific task (`/:id`, `/:id/logs`, `/:id/claim`, `/:id/heartbeat`). A `403` referencing project `'default'` indicates a missing query parameter.
 
@@ -146,39 +153,43 @@ The Orchestrator operates as `admin` for status resets, unblocking, and lifecycl
 **Enter an active stage by CLAIMING from READY, never by a status-only PATCH from BACKLOG.** `POST /tasks/:id/claim` sets the owner and lease, promoting `READY` → `IN_PROGRESS` (or `READY` → `PLANNING` for planner role).
 
 1. **IN_PROGRESS**:
-   - `POST /tasks/:id/claim?project=X` (`agent_id` = orchestrator id, credential bound to `role: "builder"` — header `X-Agent-Role: builder` must not conflict and is otherwise ignored on bound credentials, v3.8.0+). This establishes ownership, sets `claim_expires_at`, promotes `READY` → `IN_PROGRESS`, and stamps `stage_owners.IN_PROGRESS`.
+   - `POST /tasks/:id/claim?project=X` **by the BUILDER**, using its own role-bound credential (`role: "builder"`, v3.8.0+; a conflicting `X-Agent-Role` header is ignored on a bound credential) and a distinct `agent_id` (e.g. `builder-1`). The orchestrator dispatches this step; it must not claim on the builder's behalf with the admin token. This establishes ownership, sets `claim_expires_at`, promotes `READY` → `IN_PROGRESS`, and stamps `stage_owners.IN_PROGRESS` with the builder's id.
    - `POST /tasks/:id/logs?project=X` (Log: "Starting build phase...").
    - Start the heartbeat loop (§4).
-   - **Dispatch BUILDER**: Pass `task_id`, `repo_path`, `branch`, `kanban_url`, and the **builder's own role-bound `kanban_token`** (v3.8.0+: each worker holds only its own role credential — never the orchestrator's or admin credential). The builder PATCHes status and appends logs — it must NOT attempt to claim.
+   - **Dispatch BUILDER**: Pass `task_id`, `repo_path`, `branch`, `kanban_url`, and the **builder's own role-bound `kanban_token`** (v3.8.0+: each worker holds only its own role credential — never the orchestrator's or admin credential). The builder claims the card (claim-first, §4), PATCHes status and appends logs; the orchestrator observes and logs, it does not perform those writes itself.
    - Await Builder completion and verification evidence.
 
 2. **IN_REVIEW**:
-   - `PATCH /tasks/:id?project=X` (Status: `IN_REVIEW`, Role: `builder` or `admin`, with `expected_version`). The card is already owned from the claim; do NOT re-claim.
+   - `PATCH /tasks/:id?project=X` (Status: `IN_REVIEW`, Role: `builder`; `admin` only for lifecycle repair, with `expected_version`). The card is already owned from the claim; do NOT re-claim.
    - `POST /tasks/:id/logs?project=X` (Log: "Submitting for review...").
    - **Dispatch REVIEWER**: Pass `diff` or `commit_range`.
    - Await Reviewer response (`Approve` | `Blocking Findings`).
    - If **Findings**: Append findings to logs → Transition status back to `IN_PROGRESS` → Re-dispatch Builder.
 
 3. **VALIDATION**:
-   - `PATCH /tasks/:id?project=X` (Status: `VALIDATION`, Role: `reviewer` or `admin`, with `expected_version`).
+   - `PATCH /tasks/:id?project=X` (Status: `VALIDATION`, Role: `reviewer`; `admin` only for lifecycle repair, with `expected_version`).
    - `POST /tasks/:id/logs?project=X` (Log: "Running test suite and validation...").
    - **Dispatch TESTER / VALIDATOR**: Pass test suite commands and verification scope.
    - Await Tester result (`Pass` | `Fail`).
    - If **Fail**:
-     - `PATCH /tasks/:id?project=X` (Status: `IN_PROGRESS`, Role: `tester` or `admin`, with `expected_version`) to reject back to the builder. (`VALIDATION → READY` is not a legal transition; `IN_PROGRESS` is the only way back.)
+     - `PATCH /tasks/:id?project=X` (Status: `IN_PROGRESS`, Role: `tester`; `admin` only for lifecycle repair, with `expected_version`) to reject back to the builder. (`VALIDATION → READY` is not a legal transition; `IN_PROGRESS` is the only way back.)
      - `POST /tasks/:id/logs?project=X` (Log: "Tester failed. Returning to IN_PROGRESS.").
      - Restart build loop.
 
 4. **READY_TO_SHIP**:
-   - `PATCH /tasks/:id?project=X` (Status: `READY_TO_SHIP`, Role: `tester`, `validator`, or `admin`, with `expected_version`).
+   - `PATCH /tasks/:id?project=X` (Status: `READY_TO_SHIP`, Role: `tester` or `validator`; `admin` only for lifecycle repair, with `expected_version`).
    - `POST /tasks/:id/logs?project=X` (Log: "Validated. Ready to ship.").
 
 ### Stage C: Closure
 Validated by a `test_pass` signal and promoted to `READY_TO_SHIP`:
 1. **Docs & Versioning**: Update README/docs/CHANGELOG and bump version numbers in lockstep.
 2. **Merge**: `git checkout main && git merge --no-ff <branch>`
-3. **Tag & Push**: `git tag -a v<version> -m "release <version>" && git push origin main --tags`
-4. **Finalize**: `PATCH /tasks/:id?project=X` (Status: `DONE`, Role: `releaser` or `admin`, with `expected_version`) + log completion metadata.
+3. **Tag, Release & Push**: `git tag -a v<version> -m "release <version>" && git push origin main --tags`, then **publish a GitHub Release for that same tag** — every release ships both, never a bare tag:
+   ```bash
+   gh release create v<version> --title "v<version>" --notes-file <changelog-section.md>
+   ```
+   `releases/latest` is what the deploy-drift monitor reads first. A tag pushed without a Release leaves that feed stale, which is exactly how v3.10.5 sat at the top while the board ran 3.12.x (the tags fallback in v3.12.7 now covers that case, but the Release is still the contract). Verify with `gh release view v<version>` and `curl -s https://api.github.com/repos/<owner>/<repo>/releases/latest | jq -r .tag_name`.
+4. **Finalize**: `PATCH /tasks/:id?project=X` (Status: `DONE`, Role: `releaser`; `admin` only for lifecycle repair, with `expected_version`) + log completion metadata.
 5. **Close GitHub Issue**: `gh issue close <N> --comment "Resolved in v<version>: ..."`
 6. **Deployment Check**: Confirm live deployment status (e.g. `railway status` and `GET /api/health`).
 7. **Report**: Summarize completion to user (commit hash, test outputs, completion status).
@@ -187,7 +198,10 @@ Validated by a `test_pass` signal and promoted to `READY_TO_SHIP`:
 
 - **Identity & Roles**: Orchestrator = `admin`. Workers = `planner`, `builder`, `reviewer`, `tester`/`validator`, `releaser`.
 - **Credential-Bound Roles (MANDATORY, v3.8.0+)**: every agent role above requires its own credential bound to that role in `KANBAN_PROJECT_TOKENS`; the server forces the role from the credential. A self-declared `X-Agent-Role` header that conflicts with the bound role is ignored — the request is served with the credential's role — and the mismatch is audited as `role_binding_mismatch`. Legacy string tokens keep current (unbound, header-role) behavior; migration is opt-in.
+- **Credential-Bound Identity (MANDATORY, v3.12.8+ / A7)**: bind `agent_id` on the same credential so the acting agent is server-derived. A conflicting `X-Agent-Id` header or body `agent_id` is ignored and audited as `identity_binding_mismatch`. On an unbound credential, send `X-Agent-Id`: a body `agent_id` alone is not identity for a non-privileged caller, so claim/log/comment writes without the header are rejected with `400`. The admin token and an UNBOUND privileged session may assert via header or body; a session minted from an identity-bound credential keeps that identity even when its role is privileged. Sessions minted from a bound credential carry the bound identity.
 - **One agent per role (MANDATORY, v3.9.0+):** dispatch each stage to a distinct `x-agent-id` **and** its own role-bound credential — never swap one agent's credential across stages to cover a card yourself. The board's opt-in `role_crossing` audit signal (`KANBAN_ROLE_CROSSING_AUDIT`, off by default) reports one agent id presenting several bound roles; it never rejects, but the correct posture is to never trigger it.
+- **Never walk a card with the admin token (MANDATORY).** The orchestrator's `admin`/`runner` credential is for lifecycle repair only: resetting a reaped card, unblocking, correcting a bad status. Claiming or PATCHing the normal stage transitions as `admin`, or with one agent id across stages, stamps a single `stage_owners` entry — the card then renders a **RED** severity dot ("self-approval"), even when the work was genuinely reviewed and tested. `stage_owners` is the board's evidence of separation of duties; keep it truthful rather than convenient.
+- **Severity dot** (`client/src/lib/ownership.ts`): GREEN = two or more distinct agents covered the active stages; AMBER = one agent held 2-3 stages; RED = one agent held 4 or more; hollow = filed straight to `DONE` or only one stage witnessed, so separation cannot be evaluated. A freshly finished card that is RED means the protocol above was not followed. Never rewrite `stage_owners` after the fact to turn a dot green.
 - **Headers**: All requests must include `x-agent-id`, `x-agent-role`, and `x-api-token`. Header `x-agent-role` alone no longer grants a role on a role-bound credential (v3.8.0+) — the role comes from the credential; the header remains the role source only for legacy unbound tokens.
 - **Project Scoping**: Always append `?project=<name>` on task-specific endpoints.
 - **Optimistic Locking**: Every `PATCH` requires the card's CURRENT `version` as `expected_version`. Operations like `POST /claim`, `POST /logs`, and `POST /heartbeat` each increment the card's version on the server, so a version read earlier in the cycle is stale. Always fetch the fresh version before issuing a `PATCH`:
@@ -203,7 +217,10 @@ Validated by a `test_pass` signal and promoted to `READY_TO_SHIP`:
 - **Heartbeat & Leases**: Claim TTL is `KANBAN_CLAIM_TTL_MS` (default 600,000 ms = 10 min). Issue `POST /tasks/:id/heartbeat?project=X` at least every 2 minutes while holding a card. A claim may also request an explicit window with `{"lease_ms": <ms>}` (clamped to `KANBAN_MIN_LEASE_MS` 60,000 and `KANBAN_MAX_LEASE_MS` 7,200,000). Logs from the holder also extend the lease.
 - **3-Cycle Limit**: If a cycle (IN_PROGRESS → IN_REVIEW → VALIDATION) repeats 3 times, halt and report blockers.
 - **Evidence-Based Success**: Never transition stages without explicit command output, test results, or commit hashes.
-- **Rate Limiting & Proxy Configuration**: In `v3.2.1+`, the board limits invalid authentication attempts (`KANBAN_AUTH_RATE_LIMIT_PER_MIN`, default 60/min) tracked per client IP using Express's `req.ip`. Reverse proxy deployments must set `KANBAN_TRUST_PROXY` to the expected proxy depth (e.g., `1`, `loopback`, or `true`) so client IPs isolate accurately. If you receive `429 Too Many Requests: authentication rate limit exceeded`, respect the `Retry-After` header before retrying, and verify token configurations to avoid lockout.
+- **Rate Limiting & Proxy Configuration**: The board throttles failed authentication attempts (`KANBAN_AUTH_RATE_LIMIT_PER_MIN`, default 60 per window, **on by default since v3.13.0**; `0` disables) tracked per client IP using Express's `req.ip`. Only failing requests are throttled — valid credentials are still served — except that an address past 10x the limit in one window is refused outright until the window ends. Since v3.15.0 no proxy is trusted unless `KANBAN_TRUST_PROXY` is set, so reverse proxy deployments (including hosted boards behind a platform edge) must set it to the expected proxy depth (e.g., `1`) or the proxy's address/CIDR; a board exposed directly can leave it unset. Session challenges (`POST /api/auth/challenge`) are stateless since v3.15.0, and each credential can hold up to 50 outstanding stream tickets (`429` with `Retry-After` beyond that). If you receive `429` (`Too many failed authentication attempts`), respect the `Retry-After` header before retrying, and fix the token rather than retrying blindly.
+- **v3.13.0 behaviour changes**: `depends_on` entries must name cards in the **same project** (a cross-project entry is `400`, and existing cross-project dependencies count as unsatisfied); completing a card only unblocks dependents in its own project. `POST /tasks/:id/assign` requires an `agent_id` field (explicit `null` releases). SSE diff frames carry `{kind, task, project, actor, reason, ts}` without `prev`, streams get a `: ping` comment every 20 s, and each client IP may hold at most `KANBAN_MAX_SSE_STREAMS_PER_IP` (default 20) concurrent streams (`503` over the cap).
+- **v3.14.0 behaviour changes**: deleting a card, purging (including `hard`), and restoring or hard-deleting a trashed card need the admin credential (`admin_token` / `KANBAN_ADMIN_TOKEN`) or a privileged session in **every** auth mode; in single-token deployments `X-Agent-Role: admin` with the shared token now gets `403` for these (header roles still drive stage transitions there). The server refuses to start if `KANBAN_ADMIN_TOKEN` equals the shared token or any project credential. `POST /api/auth/session` requires a fresh `server_nonce` from `POST /api/auth/challenge` by default (`KANBAN_SESSION_NONCE_MODE=legacy` is a temporary opt-out).
+- **v3.16.0 behaviour changes**: a request whose project channels disagree (`?project=`/`?workspace=`, `X-Kanban-Project`, body `project`/`workspace_id`, or a composite `project:id` card id) is rejected with `400`; send the same project everywhere you send it (a blank value still counts as absent). Operators may set `KANBAN_REQUIRE_BOUND_CREDENTIALS=1`, which refuses writes (`403`) from credentials without an `agent_id` binding, so use the agent-bound credential you were given. The event stream may be gzip-compressed (standard `EventSource` handles this).
 - **Payload & Encoding Standards**: In `v3.2.1+`, the server strictly translates body-parser errors: unsupported `Content-Encoding` returns `415 Unsupported Media Type` (`error: "unsupported_encoding"`), while payload corruption or length violations return `400 Bad Request` (`request_size_invalid`, `request_aborted`). Orchestrators and workers must send standard uncompressed JSON payloads (`Content-Type: application/json; charset=utf-8`) under 100KB.
 - **HTTP Header ASCII ByteString Requirement (v3.6.3+)**: All HTTP header keys and values sent to the board (e.g., `x-agent-id`, `x-agent-role`, `x-api-token`, `x-ask-pass`) **MUST** be pure ASCII ByteStrings (`ISO-8859-1` / `U+0000` to `U+00FF`, standard printable ASCII). Non-ASCII characters (such as em dashes `—`, curly quotes, or unicode glyphs) trigger `TypeError: Cannot convert argument to a ByteString...` in Node.js HTTP clients before the packet leaves the process. Always sanitize header values to standard ASCII.
 - **Ask-the-Board Separation of Concerns (v3.4.0–v3.7.1+)**: The board provides `POST /api/ask` and `GET /api/ask/config` for human visitor inquiries over the board's protocol and source context (via OpenRouter or local Ollama). It is authenticated via `x-ask-pass` (`KANBAN_ASK_PASSWORD`), NOT `x-api-token`. Orchestrators and automated agents **MUST NOT** attempt to use `/api/ask` for mutations, task claiming, or state moves. The assistant has no mutation capabilities, no tokens, and does not claim or move cards.
