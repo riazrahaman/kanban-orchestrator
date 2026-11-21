@@ -13,6 +13,29 @@ Release tags are available on [GitHub Releases](https://github.com/riazrahaman/k
 > [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board) versions;
 > board compatibility is listed in each entry.
 
+## [3.17.1] — 2026-11-21
+
+Documents the board's new optional daily Telegram backup (board v3.17.0).
+Documentation-only: no protocol, header or endpoint behaviour changed.
+
+### Added
+- **Daily Backup to Telegram (optional, operator-owned).** `SKILL.md` and
+  `README.md` note that the board server can send a full compressed backup of
+  all its data to the Telegram chat once a day (`KANBAN_TELEGRAM_BACKUP_ENABLED`,
+  `KANBAN_TELEGRAM_BACKUP_HOUR` default `3`, `KANBAN_TELEGRAM_BACKUP_TZ` default
+  `Asia/Dubai`). It has no HTTP surface and changes no board state; agents never
+  call, trigger or poll it.
+
+### Changed
+- README badges and version line updated to `v3.17.1`.
+
+### Notes
+- Board compatibility is unchanged: board v3.0.0+ (v3.9.5+ recommended for
+  deploy-drift, v3.12.8+ for identity binding). The daily backup needs board
+  v3.17.0+ but is server-side and optional.
+- Source of truth is `skills/kanban/` in `agent-kanban-board`; this repository
+  keeps the install name `kanban-orchestrator`.
+
 ## [3.16.1] — 2026-11-14
 
 Catches the skill up with agent-kanban-board v3.10 to v3.16.1. `SKILL.md` is

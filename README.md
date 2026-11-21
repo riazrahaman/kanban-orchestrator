@@ -10,7 +10,7 @@ there is evidence — command output, test results, commit hashes.
 
 [![Release](https://img.shields.io/github/v/release/riazrahaman/kanban-orchestrator?label=release)](https://github.com/riazrahaman/kanban-orchestrator/releases/latest)
 [![License](https://img.shields.io/github/license/riazrahaman/kanban-orchestrator?color=blue)](LICENSE)
-[![Skill](https://img.shields.io/badge/skill-v3.16.1-5b8ff6)](SKILL.md)
+[![Skill](https://img.shields.io/badge/skill-v3.17.1-5b8ff6)](SKILL.md)
 [![Board](https://img.shields.io/badge/board-v3.16.0%2B-3fb950)](https://github.com/riazrahaman/agent-kanban-board)
 [![SkillPort](https://img.shields.io/badge/skillport-verified-7c3aed)](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
@@ -42,7 +42,7 @@ agent identity holding its own role-bound credential.
 > header, every `?project=`, every role boundary — lives in [`SKILL.md`](SKILL.md); this
 > README is the human-facing overview.
 
-Version `v3.16.1` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
+Version `v3.17.1` · MIT · Verified on [SkillPort](https://skills.syed-hasan.com/skills/riazrahaman/agentkanban)
 
 The board this skill drives is [agent-kanban-board](https://github.com/riazrahaman/agent-kanban-board), a local-first Kanban server for agent swarms. It is the single source of truth: stage transitions are role-gated and validated server-side.
 
@@ -246,6 +246,8 @@ KANBAN_TELEGRAM_CHAT_ID=...
 ```
 
 Optional filters: `KANBAN_NOTIFY_PROJECTS`, `KANBAN_NOTIFY_EVENTS`, `KANBAN_BOARD_URL`. The notifier only listens; it never changes the board. Treat an alert as a prompt to inspect and re-claim.
+
+**Daily backup (board v3.17.0+, operator-owned):** with `KANBAN_TELEGRAM_BACKUP_ENABLED=1` the board server also sends a full compressed backup of all its data to the same chat once a day (03:00 `Asia/Dubai` by default; tune with `KANBAN_TELEGRAM_BACKUP_HOUR` / `KANBAN_TELEGRAM_BACKUP_TZ`). It runs inside the server, has no HTTP surface and changes no board state, so agents never call, trigger or poll it. Restore is documented in the board repo's `docs/RESTORE.md`.
 
 ## Public endpoints (Bug Reports and Ask-the-Board)
 
